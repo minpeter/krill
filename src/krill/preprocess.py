@@ -78,34 +78,27 @@ def do_preprocess(config_path: str):
     total_tokens_before_filter = sum(lengths)
     total_tokens_after_filter = sum(lengths[i] for i in selected)
     filter_dropped_tokens = total_tokens_before_filter - total_tokens_after_filter
+    print(
+        f"\n\033[1;41;97mDropped {filter_dropped_tokens} tokens\033[0m during filtering (samples shorter than min_length={config.dataset_prepared_min_length})\n"
+    )
     tokenized = tokenized.select(selected)
 
     # Pack sequences
-    print(f"Packing into sequences of length {config.sequence_len}...")
+    print(f"Packing into sequences of length {config.sequence_len}...", end="")
     packed = pack_dataset(tokenized, seq_length=config.sequence_len, strategy="wrapped",
                           map_kwargs={"batch_size": len(tokenized)})
     # Drop incomplete last chunk and record dropped tokens
-    pack_dropped_tokens = 0
     if len(packed) > 0:
         last_len = len(packed[-1]["input_ids"])
         if last_len < config.sequence_len:
-            pack_dropped_tokens = last_len
+            print(
+                f"\n\033[1;41;97mDropped {last_len} tokens\033[0m from final incomplete chunk (length {last_len} < sequence_len={config.sequence_len})"
+            )
             packed = packed.select(list(range(len(packed) - 1)))
 
 
     print(f"\nOriginal dataset rows: {len(raw_dataset)}")
     print(f"Packed dataset rows: {len(packed)}")
-
-    # Report dropped token statistics
-    if filter_dropped_tokens > 0:
-        print(
-            f"\n\033[1;41;97mDropped {filter_dropped_tokens} tokens\033[0m during filtering (samples shorter than min_length={config.dataset_prepared_min_length})",
-            end=""
-        )
-    if pack_dropped_tokens > 0:
-        print(
-            f"\n\033[1;41;97mDropped {pack_dropped_tokens} tokens\033[0m from final incomplete chunk (length {pack_dropped_tokens} < sequence_len={config.sequence_len})"
-        )
 
     # Save
     packed.save_to_disk(config.dataset_prepared_path)
