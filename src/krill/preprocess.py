@@ -109,6 +109,23 @@ def do_preprocess(config_path: str):
 
     # Save
     packed.save_to_disk(config.dataset_prepared_path)
+
+
+    if len(packed) > 0:
+    # Check for any samples that do not match the expected context length
+        wrong_indices = [
+            i for i, sample in enumerate(packed)
+            if len(sample["input_ids"]) != config.sequence_len
+        ]
+        if wrong_indices:
+            print(
+                f"\033[1;41;97mWarning: Found {len(wrong_indices)} samples "
+                f"with incorrect length (expected {config.sequence_len}). "
+                f"Indices: {wrong_indices}\033[0m"
+            )
+        else:
+            print("\033[1;32mAll packed samples have the correct context length.\033[0m")
+    
     print(f"🦐 Krill: Finished. Packed data saved to {config.dataset_prepared_path}")
 
 def main():
