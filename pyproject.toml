@@ -9,6 +9,7 @@ readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "accelerate>=1.9.0",
+    "click>=8.2.1",
     "datasets>=4.0.0",
     "flash-attn>=2.8.2",
     "hf-transfer>=0.1.9",
@@ -22,8 +23,8 @@ dependencies = [
 ]
 
 [project.scripts]
-krill = "krill.cli.main:main"
-kr = "krill.cli.main:main"
+krill = "krill.cli:main"
+kr = "krill.cli:main"
 
 [tool.uv.sources]
 torch = [{ index = "pytorch-cu128" }]
