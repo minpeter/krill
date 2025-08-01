@@ -12,7 +12,7 @@ datasets:
 hub_model_id: minpeter/webtext-8x-250801
 output_dir: ./artifacts/models/webtext-8x-250801
 
-num_epochs: 1
+num_epochs: 5
 learning_rate: 3e-4
 weight_decay: 0.1
 optimizer: muon

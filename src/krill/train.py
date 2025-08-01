@@ -15,6 +15,7 @@ from transformers import (
 )
 from pytorch_optimizer import Muon
 
+
 def do_train(config_path: str):
     """Trains the model using the given YAML config file."""
     print(f"🚀 [Train] Starting training with config: {config_path}")
@@ -41,7 +42,7 @@ def do_train(config_path: str):
         tokenizer.pad_token = tokenizer.eos_token
     # Model config
     model_configs = {
-        "small": LlamaConfig(hidden_size=768, num_hidden_layers=27, intermediate_size=1920, tie_word_embeddings=True, num_attention_heads=12, num_key_value_heads=4),
+        "small": LlamaConfig(initializer_range=(1 / math.sqrt(768)), hidden_size=768, num_hidden_layers=27, intermediate_size=1920, tie_word_embeddings=True, num_attention_heads=12, num_key_value_heads=4),
     }
     cfg = model_configs.get(model_cfg_name)
     cfg.torch_dtype = torch.bfloat16
@@ -52,12 +53,14 @@ def do_train(config_path: str):
     # Model
     logger.info(f"Initializing model '{model_cfg_name}'")
     model = LlamaForCausalLM(cfg)
-    model.to(torch.bfloat16).to(torch.device("cuda" if torch.cuda.is_available() else "cpu"))
+    model.to(torch.bfloat16).to(torch.device(
+        "cuda" if torch.cuda.is_available() else "cpu"))
     # Optimizer
     if optimizer_choice == "muon":
         optimizer = Muon(model.parameters(), lr=lr, weight_decay=weight_decay)
     else:
-        optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
+        optimizer = torch.optim.AdamW(
+            model.parameters(), lr=lr, weight_decay=weight_decay)
     # Dataset
     logger.info(f"Loading dataset from {dataset_path}")
     ds = load_from_disk(dataset_path)
@@ -68,21 +71,18 @@ def do_train(config_path: str):
     training_args = TrainingArguments(
         output_dir=output_dir,
         num_train_epochs=num_epochs,
-        per_device_train_batch_size=16,
+        per_device_train_batch_size=2,
         gradient_accumulation_steps=2,
         learning_rate=lr,
         weight_decay=0.0,
         bf16=True,
         push_to_hub=True,
         hub_model_id=hf_model_id,
-        logging_steps=25,
+        logging_steps=1,
         eval_steps=1000,
         save_steps=1000,
         save_total_limit=3,
-        evaluation_strategy="steps",
         save_strategy="steps",
-        load_best_model_at_end=True,
-        metric_for_best_model="eval_loss",
     )
     trainer = Trainer(
         model=model,
@@ -100,11 +100,13 @@ def do_train(config_path: str):
     trainer.train()
     print(f"🚀 [Train] Finished. Model saved to {output_dir}")
 
+
 def main():
     parser = argparse.ArgumentParser(description="Krill Training Script")
     parser.add_argument("config", help="Path to the configuration file.")
     args = parser.parse_args()
     do_train(args.config)
+
 
 if __name__ == "__main__":
     main()
