@@ -75,6 +75,14 @@ def preprocess(config: str):
     do_preprocess(config)
 
 @cli.command()
+@click.argument("config", type=click.Path(exists=True))
+def peekdata(config: str):
+    """Peek into the dataset after preprocessing."""
+
+    from krill.peekdata import do_peekdata
+    do_peekdata(config)
+
+@cli.command()
 def echo():
     """Echo the command line arguments. (For testing purposes.)"""
     print("Command line arguments:", sys.argv[1:])
