@@ -2,6 +2,9 @@
 name = "krill"
 version = "0.1.0"
 description = "🦐 A minimal pretraining trainer for LLMs — from scratch."
+authors = [
+    { name = "minpeter", email = "kali2005611@gmail.com" },
+]
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
@@ -17,6 +20,9 @@ dependencies = [
     "trl>=0.20.0",
     "wandb>=0.21.0",
 ]
+
+[project.scripts]
+kr = "krill.main:main"
 
 [tool.uv.sources]
 torch = [{ index = "pytorch-cu128" }]
