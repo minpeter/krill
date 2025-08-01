@@ -28,16 +28,9 @@ def do_preprocess(config_path: str):
     print(f"🦐 Krill: Starting preprocessing with config: {config_path}")
     # Load config centrally
     config = load_config(config_path)
-    # Extract settings from Pydantic model
-    context_length = config.sequence_len
-    save_path = config.dataset_prepared_path
-    ds_cfg = config.datasets[0]
-    dataset_id = ds_cfg.path
-    split = ds_cfg.split
-    text_col = ds_cfg.text_column
     
     # Prepare output directory
-    os.makedirs(save_path, exist_ok=True)
+    os.makedirs(config.dataset_prepared_path, exist_ok=True)
 
     # Load raw dataset(s)
     raw_ds_list = list(load_raw_datasets(config.datasets))
@@ -84,16 +77,20 @@ def do_preprocess(config_path: str):
     tokenized = tokenized.select(selected)
 
     # Pack sequences
-    print(f"Packing into sequences of length {context_length}...")
-    packed = pack_dataset(tokenized, seq_length=context_length, strategy="wrapped",
+    print(f"Packing into sequences of length {config.sequence_len}...")
+    packed = pack_dataset(tokenized, seq_length=config.sequence_len, strategy="wrapped",
                           map_kwargs={"batch_size": len(tokenized)})
     # Drop incomplete last chunk
-    if len(packed) > 0 and len(packed[-1]["input_ids"]) < context_length:
+    if len(packed) > 0 and len(packed[-1]["input_ids"]) < config.sequence_len:
         packed = packed.select(list(range(len(packed) - 1)))
-    
+
+
+    print(f"\nOriginal dataset rows: {len(raw_dataset)}")
+    print(f"Packed dataset rows: {len(packed)}")
+
     # Save
-    packed.save_to_disk(save_path)
-    print(f"🦐 Krill: Finished. Packed data saved to {save_path}")
+    packed.save_to_disk(config.dataset_prepared_path)
+    print(f"🦐 Krill: Finished. Packed data saved to {config.dataset_prepared_path}")
 
 def main():
     parser = argparse.ArgumentParser(description="Krill Preprocessing Script")
