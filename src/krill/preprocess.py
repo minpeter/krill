@@ -3,12 +3,13 @@
 import argparse
 import os
 import time
-from datasets import load_dataset
-from transformers import AutoTokenizer
-from trl import pack_dataset
 import multiprocessing
 import resource
 import re
+
+from datasets import load_dataset
+from transformers import AutoTokenizer
+from trl import pack_dataset
 
 
 parser = argparse.ArgumentParser(description="Preprocess datasets for tiny-ko")

@@ -1,0 +1,27 @@
+[project]
+name = "krill"
+version = "0.1.0"
+description = "🦐 A minimal pretraining trainer for LLMs — from scratch."
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "accelerate>=1.9.0",
+    "datasets>=4.0.0",
+    "flash-attn>=2.8.2",
+    "hf-transfer>=0.1.9",
+    "liger-kernel>=0.6.1",
+    "pytorch-optimizer>=3.7.0",
+    "torch>=2.7.1",
+    "transformers>=4.54.1",
+    "triton>=3.3.1",
+    "trl>=0.20.0",
+    "wandb>=0.21.0",
+]
+
+[tool.uv.sources]
+torch = [{ index = "pytorch-cu128" }]
+
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
