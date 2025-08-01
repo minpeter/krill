@@ -22,8 +22,8 @@ dependencies = [
 ]
 
 [project.scripts]
-krill = "krill.main:main"
-kr = "krill.main:main"
+krill = "krill.cli.main:main"
+kr = "krill.cli.main:main"
 
 [tool.uv.sources]
 torch = [{ index = "pytorch-cu128" }]
