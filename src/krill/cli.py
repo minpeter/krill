@@ -30,7 +30,7 @@ def cli():
     f"   ( #|{chr(92)}_ü|   {gpu_stats.name}. Num GPUs = {DEVICE_COUNT}. Max memory: {max_memory} GB. Platform: {PLATFORM_SYSTEM}.\n"\
     f"   ( #{chr(92)}  ƒƒ   Torch: {torch.__version__}. {gpu_stats_snippet} Triton: {triton_version}\n"\
     f"    {chr(92)} #{chr(92)}      Transformers: {transformers_version}. Bfloat16 = {str(SUPPORTS_BFLOAT16).upper()}. FA2 = {HAS_FLASH_ATTENTION}\n"\
-    f'    /|||{chr(92)}     Source code: https://github.com/minpeter/krill'
+    f'    /|||{chr(92)}     Source code: https://github.com/minpeter/krill\n'
 
     print(statistics)
 
@@ -71,7 +71,7 @@ def train(ctx, config: str):
 def preprocess(config: str):
     """Preprocess a dataset."""
 
-    from .preprocess import do_preprocess
+    from krill.preprocess import do_preprocess
     do_preprocess(config)
 
 @cli.command()

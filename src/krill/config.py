@@ -14,15 +14,15 @@ class Config(BaseModel):
     sequence_len: int
     hub_tokenizer_id: str
     dataset_prepared_path: str
-    dataset_prepared_min_length: Optional[int]
+    dataset_prepared_min_length: int = Field(default=150)
     datasets: List[DatasetConfig]
-    hub_model_id: Optional[str]
-    output_dir: Optional[str]
-    num_epochs: Optional[int]
-    learning_rate: Optional[float]
-    weight_decay: Optional[float]
-    optimizer: Optional[str]
-    model_config_name: Optional[str]
+    hub_model_id: str
+    output_dir: str
+    num_epochs: int = Field(default=1)
+    learning_rate: float = Field(default=3e-4)
+    weight_decay: float = Field(default=0.01)
+    optimizer: str = Field(default="muon")
+    model_config_name: str = Field(default="small")
 
 def load_config(path: str) -> Config:
     """Load YAML configuration and validate it against the Config model."""
