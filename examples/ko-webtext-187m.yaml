@@ -6,14 +6,14 @@ dataset_prepared_min_length: 150
 
 datasets:
   - path: HAERAE-HUB/KOREAN-WEBTEXT
-    split: train
+    split: train[:1000]
     text_column: text
 
 hub_model_id: minpeter/webtext-8x-250801
 output_dir: ./artifacts/models/webtext-8x-250801
 
 num_epochs: 1
-learning_rate: 5e-4
+learning_rate: 3e-4
 weight_decay: 0.1
 optimizer: muon
 
