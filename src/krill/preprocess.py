@@ -10,32 +10,35 @@ from krill.config import load_config, DatasetConfig
 def load_raw_datasets(dataset_config: DatasetConfig):
     print("Loading raw datasets...")
     for ds in dataset_config:
-        print(f"Loading dataset {ds.path} columns={ds.text_column} split={ds.split}...")
+        print(
+            f"Loading dataset {ds.path} columns={ds.text_column} split={ds.split}...")
         dataset = load_dataset(ds.path, split=ds.split)
 
         # Rename the text column to "text" for consistency
         if ds.text_column != "text":
             dataset = dataset.rename_column(ds.text_column, "text")
-        
+
         # Drop all columns except "text"
-        dataset = dataset.remove_columns([col for col in dataset.column_names if col != "text"])
+        dataset = dataset.remove_columns(
+            [col for col in dataset.column_names if col != "text"])
 
         yield dataset
-    
+
 
 def do_preprocess(config_path: str):
     """Preprocesses the data based on the YAML config file."""
     print(f"🦐 Krill: Starting preprocessing with config: {config_path}")
     # Load config centrally
     config = load_config(config_path)
-    
+
     # Prepare output directory
     os.makedirs(config.dataset_prepared_path, exist_ok=True)
 
     # Load raw dataset(s)
     raw_ds_list = list(load_raw_datasets(config.datasets))
     if not raw_ds_list:
-        raise ValueError("No datasets found to preprocess. Check your config file.")
+        raise ValueError(
+            "No datasets found to preprocess. Check your config file.")
     # Combine datasets if multiple
     if len(raw_ds_list) > 1:
         from datasets import concatenate_datasets
@@ -72,8 +75,10 @@ def do_preprocess(config_path: str):
     )
 
     # Filter by min_length
-    lengths = tokenized["input_ids"].map(len) if hasattr(tokenized["input_ids"], 'map') else [len(x) for x in tokenized["input_ids"]]
-    selected = [i for i, l in enumerate(lengths) if l >= config.dataset_prepared_min_length]
+    lengths = tokenized["input_ids"].map(len) if hasattr(
+        tokenized["input_ids"], 'map') else [len(x) for x in tokenized["input_ids"]]
+    selected = [i for i, l in enumerate(
+        lengths) if l >= config.dataset_prepared_min_length]
     # Compute token drop statistics from filtering
     total_tokens_before_filter = sum(lengths)
     total_tokens_after_filter = sum(lengths[i] for i in selected)
@@ -96,16 +101,14 @@ def do_preprocess(config_path: str):
             )
             packed = packed.select(list(range(len(packed) - 1)))
 
-
     print(f"\nOriginal dataset rows: {len(raw_dataset)}")
     print(f"Packed dataset rows: {len(packed)}")
 
     # Save
     packed.save_to_disk(config.dataset_prepared_path)
 
-
     if len(packed) > 0:
-    # Check for any samples that do not match the expected context length
+        # Check for any samples that do not match the expected context length
         wrong_indices = [
             i for i, sample in enumerate(packed)
             if len(sample["input_ids"]) != config.sequence_len
@@ -117,15 +120,26 @@ def do_preprocess(config_path: str):
                 f"Indices: {wrong_indices}\033[0m"
             )
         else:
-            print("\033[1;32mAll packed samples have the correct context length.\033[0m")
-    
-    print(f"🦐 Krill: Finished. Packed data saved to {config.dataset_prepared_path}")
+            print(
+                "\033[1;32mAll packed samples have the correct context length.\033[0m")
+
+    print(
+        f"🦐 Krill: Finished. Packed data saved to {config.dataset_prepared_path}")
+
+    print("""
+To inspect the packed dataset, you can use the `peekdata` command:
+\033[1;34m krill peekdata {path}\033[0m
+Or to train a model with this dataset, use:
+\033[1;34m krill train {path}\033[0m
+""".format(path=config_path))
+
 
 def main():
     parser = argparse.ArgumentParser(description="Krill Preprocessing Script")
     parser.add_argument("config", help="Path to the configuration file.")
     args = parser.parse_args()
     do_preprocess(args.config)
+
 
 if __name__ == "__main__":
     main()
