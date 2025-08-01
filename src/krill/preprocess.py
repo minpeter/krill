@@ -23,19 +23,6 @@ def load_raw_datasets(dataset_config: DatasetConfig):
         yield dataset
     
 
-def tokenize_function(examples):
-    tokenized_inputs = tokenizer(
-        examples["text"], padding=False, truncation=False)
-
-    if tokenizer.eos_token_id is not None:
-        for i in range(len(tokenized_inputs["input_ids"])):
-            tokenized_inputs["input_ids"][i].append(tokenizer.eos_token_id)
-            tokenized_inputs["attention_mask"][i].append(1)
-            if "token_type_ids" in tokenized_inputs:
-                tokenized_inputs["token_type_ids"][i].append(0)
-
-    return tokenized_inputs
-
 def do_preprocess(config_path: str):
     """Preprocesses the data based on the YAML config file."""
     print(f"🦐 Krill: Starting preprocessing with config: {config_path}")
@@ -66,24 +53,36 @@ def do_preprocess(config_path: str):
     # Load tokenizer
     tokenizer = AutoTokenizer.from_pretrained(config.hub_tokenizer_id)
 
-    # Tokenize
-    def tokenize_fn(examples):
-        tokens = tokenizer(examples[text_col], padding=False, truncation=False)
+    def tokenize_function(examples):
+        tokenized_inputs = tokenizer(
+            examples["text"], padding=False, truncation=False)
+
         if tokenizer.eos_token_id is not None:
-            for i in range(len(tokens["input_ids"])):
-                tokens["input_ids"][i].append(tokenizer.eos_token_id)
-                tokens["attention_mask"][i].append(1)
-                if "token_type_ids" in tokens:
-                    tokens["token_type_ids"][i].append(0)
-        return tokens
-    num_proc = max(1, os.cpu_count() - 1)
-    print(f"Tokenizing with {num_proc} processes...")
-    tokenized = raw_dataset.map(tokenize_fn, batched=True, num_proc=num_proc,
-                                 remove_columns=raw_dataset.column_names)
+            for i in range(len(tokenized_inputs["input_ids"])):
+                tokenized_inputs["input_ids"][i].append(tokenizer.eos_token_id)
+                tokenized_inputs["attention_mask"][i].append(1)
+                if "token_type_ids" in tokenized_inputs:
+                    tokenized_inputs["token_type_ids"][i].append(0)
+
+        return tokenized_inputs
+
+    num_proc = max(1, os.cpu_count() - 8)
+    print(
+        f"Total CPUs: {os.cpu_count()}, Using {num_proc} processes for mapping.")
+
+    tokenized = raw_dataset.map(
+        tokenize_function,
+        batched=True,
+        num_proc=num_proc,
+        remove_columns=raw_dataset.column_names,
+        desc="Tokenizing"
+    )
+
     # Filter by min_length
     lengths = tokenized["input_ids"].map(len) if hasattr(tokenized["input_ids"], 'map') else [len(x) for x in tokenized["input_ids"]]
     selected = [i for i, l in enumerate(lengths) if l >= config.dataset_prepared_min_length]
     tokenized = tokenized.select(selected)
+
     # Pack sequences
     print(f"Packing into sequences of length {context_length}...")
     packed = pack_dataset(tokenized, seq_length=context_length, strategy="wrapped",
@@ -91,6 +90,7 @@ def do_preprocess(config_path: str):
     # Drop incomplete last chunk
     if len(packed) > 0 and len(packed[-1]["input_ids"]) < context_length:
         packed = packed.select(list(range(len(packed) - 1)))
+    
     # Save
     packed.save_to_disk(save_path)
     print(f"🦐 Krill: Finished. Packed data saved to {save_path}")
