@@ -22,21 +22,13 @@ def do_train(config_path: str):
     # Load config centrally
     config = load_config(config_path)
     # Extract settings from Pydantic model
-    dataset_path = config.dataset_prepared_path
-    tokenizer_id = config.hub_tokenizer_id
-    output_dir = config.output_dir
-    model_cfg_name = config.model_config_name
-    lr = config.learning_rate
-    weight_decay = config.weight_decay
-    optimizer_choice = config.optimizer
-    hf_model_id = config.hub_model_id
-    max_seq = config.sequence_len
+    # ...access settings directly from config...
     # Logging
     logging.basicConfig(level=logging.INFO)
     logger = logging.getLogger(__name__)
     # Tokenizer
-    logger.info(f"Loading tokenizer {tokenizer_id}")
-    tokenizer = AutoTokenizer.from_pretrained(tokenizer_id)
+    logger.info(f"Loading tokenizer {config.hub_tokenizer_id}")
+    tokenizer = AutoTokenizer.from_pretrained(config.hub_tokenizer_id)
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
     # Model config
@@ -44,38 +36,39 @@ def do_train(config_path: str):
         "small": LlamaConfig(initializer_range=(1 / math.sqrt(768)), hidden_size=768, num_hidden_layers=27, intermediate_size=1920, tie_word_embeddings=True, num_attention_heads=12, num_key_value_heads=4),
     }
 
-    cfg = model_configs.get(model_cfg_name)
+    cfg = model_configs.get(config.model_config_name)
     cfg.torch_dtype = torch.bfloat16
     cfg.vocab_size = len(tokenizer)
-    cfg.max_position_embeddings = max_seq
+    cfg.max_position_embeddings = config.sequence_len
     cfg.use_cache = False
 
     cfg.pad_token_id = tokenizer.pad_token_id
-    # Qwen 스타일로, 모델 설정의 BOS만 이렇게 설정, 실제로는 사용 X
+    # Following Qwen style: only the BOS is set in the model config; not actually used
     cfg.bos_token_id = tokenizer.eos_token_id
     cfg.eos_token_id = tokenizer.eos_token_id
     cfg._attn_implementation = "flash_attention_2"
 
-    # rope_theta 설정
+    # Set rope_theta
     if cfg.max_position_embeddings >= 8192:
-        cfg.rope_theta = 1_000_000.0  # 또는 500_000.0로 변경 가능
+        cfg.rope_theta = 1_000_000.0  # or optionally 500_000.0
     else:
-        cfg.rope_theta = 10_000.0  # 기본값
+        cfg.rope_theta = 10_000.0  # default
 
     # Model
-    logger.info(f"Initializing model '{model_cfg_name}'")
+    logger.info(f"Initializing model '{config.model_config_name}'")
     model = LlamaForCausalLM(cfg)
     model.to(torch.bfloat16).to(torch.device(
         "cuda" if torch.cuda.is_available() else "cpu"))
     # Optimizer
-    if optimizer_choice == "muon":
-        optimizer = Muon(model.parameters(), lr=lr, weight_decay=weight_decay)
+    if config.optimizer == "muon":
+        optimizer = Muon(model.parameters(), lr=config.learning_rate,
+                         weight_decay=config.weight_decay)
     else:
         optimizer = torch.optim.AdamW(
-            model.parameters(), lr=lr, weight_decay=weight_decay)
+            model.parameters(), lr=config.learning_rate, weight_decay=config.weight_decay)
     # Dataset
-    logger.info(f"Loading dataset from {dataset_path}")
-    ds = load_from_disk(dataset_path)
+    logger.info(f"Loading dataset from {config.dataset_prepared_path}")
+    ds = load_from_disk(config.dataset_prepared_path)
     ds = ds.train_test_split(test_size=0.001, shuffle=True)
     # Data collator
     data_collator = DataCollatorWithFlattening(return_flash_attn_kwargs=True)
@@ -91,7 +84,7 @@ def do_train(config_path: str):
         overwrite_output_dir=True,
 
         push_to_hub=True,
-        hub_model_id=hf_model_id,
+        hub_model_id=config.hub_model_id,
         hub_strategy="checkpoint",
 
         eval_strategy="steps",
@@ -100,8 +93,8 @@ def do_train(config_path: str):
         save_steps=1_000,
         logging_steps=1,
 
-        # auto_find_batch_size=True,
-        per_device_train_batch_size=4,
+        auto_find_batch_size=True,
+        # per_device_train_batch_size=4,
         gradient_accumulation_steps=2,
 
 
@@ -144,15 +137,15 @@ def do_train(config_path: str):
         optimizers=(optimizer, None),
     )
     # Save tokenizer
-    os.makedirs(output_dir, exist_ok=True)
-    tokenizer.save_pretrained(output_dir)
-    tokenizer.push_to_hub(hf_model_id)
+    os.makedirs(config.output_dir, exist_ok=True)
+    tokenizer.save_pretrained(config.output_dir)
+    tokenizer.push_to_hub(config.hub_model_id)
     # Train
     trainer.train(
         # resume_from_checkpoint=True
         # resume_from_checkpoint="last-checkpoint" # resume from the huggingface_hub last checkpoint
     )
-    print(f"🚀 [Train] Finished. Model saved to {output_dir}")
+    print(f"🚀 [Train] Finished. Model saved to {config.output_dir}")
 
 
 def main():
