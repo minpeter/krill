@@ -24,8 +24,9 @@ def do_preprocess(config_path: str):
     tokenizer = AutoTokenizer.from_pretrained(config.hub_tokenizer_id)
 
     def tokenize_function(examples):
-        tokenized_inputs = tokenizer(
-            examples["text"], padding=False, truncation=False)
+        tokenized_inputs = tokenizer(examples["text"],
+                                     padding=False,
+                                     truncation=False)
 
         if tokenizer.eos_token_id is not None:
             for i in range(len(tokenized_inputs["input_ids"])):
@@ -38,21 +39,23 @@ def do_preprocess(config_path: str):
 
     num_proc = max(1, os.cpu_count() - 8)
     print(
-        f"Total CPUs: {os.cpu_count()}, Using {num_proc} processes for mapping.")
-
-    tokenized = raw_dataset.map(
-        tokenize_function,
-        batched=True,
-        num_proc=num_proc,
-        remove_columns=raw_dataset.column_names,
-        desc="Tokenizing"
+        f"Total CPUs: {os.cpu_count()}, Using {num_proc} processes for mapping."
     )
+
+    tokenized = raw_dataset.map(tokenize_function,
+                                batched=True,
+                                num_proc=num_proc,
+                                remove_columns=raw_dataset.column_names,
+                                desc="Tokenizing")
 
     # Filter by min_length
     lengths = tokenized["input_ids"].map(len) if hasattr(
-        tokenized["input_ids"], 'map') else [len(x) for x in tokenized["input_ids"]]
-    selected = [i for i, l in enumerate(
-        lengths) if l >= config.dataset_prepared_min_length]
+        tokenized["input_ids"],
+        'map') else [len(x) for x in tokenized["input_ids"]]
+    selected = [
+        i for i, l in enumerate(lengths)
+        if l >= config.dataset_prepared_min_length
+    ]
     # Compute token drop statistics from filtering
     total_tokens_before_filter = sum(lengths)
     total_tokens_after_filter = sum(lengths[i] for i in selected)
@@ -61,7 +64,9 @@ def do_preprocess(config_path: str):
 
     # Pack sequences
     print(f"Packing into sequences of length {config.sequence_len}...", end="")
-    packed = pack_dataset(tokenized, seq_length=config.sequence_len, strategy="wrapped",
+    packed = pack_dataset(tokenized,
+                          seq_length=config.sequence_len,
+                          strategy="wrapped",
                           map_kwargs={"batch_size": len(tokenized)})
     # Drop incomplete last chunk and record dropped tokens
     last_dropped_chunk_length = 0
@@ -74,11 +79,9 @@ def do_preprocess(config_path: str):
     # Save
     packed.save_to_disk(config.dataset_prepared_path)
 
-    inspect_pretrain_dataset(
-        dataset=packed,
-        tokenizer=tokenizer,
-        show_example_rows_limit=1
-    )
+    inspect_pretrain_dataset(dataset=packed,
+                             tokenizer=tokenizer,
+                             show_example_rows_limit=1)
 
     print(
         f"\n\033[1;41;97mDropped {filter_dropped_tokens} tokens\033[0m during filtering (samples shorter than min_length={config.dataset_prepared_min_length})"
@@ -89,6 +92,9 @@ def do_preprocess(config_path: str):
 
     print(f"\nOriginal dataset rows: {len(raw_dataset)}")
     print(f"Packed dataset rows: {len(packed)}")
+    total_tokens = sum(len(sample["input_ids"]) for sample in packed)
+    print(
+        f"Total tokens in packed dataset: \033[45;97m{total_tokens / 1_000_000:.3f}B\033[0m")
 
     if len(packed) > 0:
         # Check for any samples that do not match the expected context length
@@ -97,17 +103,17 @@ def do_preprocess(config_path: str):
             if len(sample["input_ids"]) != config.sequence_len
         ]
         if wrong_indices:
-            print(
-                f"\033[1;41;97mWarning: Found {len(wrong_indices)} samples "
-                f"with incorrect length (expected {config.sequence_len}). "
-                f"Indices: {wrong_indices}\033[0m"
-            )
+            print(f"\033[1;41;97mWarning: Found {len(wrong_indices)} samples "
+                  f"with incorrect length (expected {config.sequence_len}). "
+                  f"Indices: {wrong_indices}\033[0m")
         else:
             print(
-                "\033[1;32mAll packed samples have the correct context length.\033[0m")
+                "\033[1;32mAll packed samples have the correct context length.\033[0m"
+            )
 
     print(
-        f"🦐 Krill: Finished. Packed data saved to {config.dataset_prepared_path}")
+        f"🦐 Krill: Finished. Packed data saved to {config.dataset_prepared_path}"
+    )
 
     print("""
 To inspect the packed dataset, you can use the `peekdata` command:

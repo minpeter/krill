@@ -12,21 +12,21 @@ def clean_text(text):
     Clean and normalize text data.
     """
     if not isinstance(text, str):
-        return ""  # 문자열이 아니면 빈 문자열 반환하거나 오류 처리
+        return ""  # Return empty string if not a string or handle error
 
-    # 문자열 양 끝의 공백 제거
+    # Remove whitespace from both ends of the string
     text = text.strip()
 
-    # 0-1. UTF-8 유효성을 강제로 확인 및 유효하지 않은 문자 제거 (추가된 부분)
-    # 이 과정에서 유효하지 않은 UTF-8 바이트 시퀀스가 제거됩니다.
-    # 즉, 파이썬 문자열 내부에서 UTF-8로 다시 인코딩될 수 없는 문자를 제거합니다.
+    # 0-1. Force UTF-8 validity check and remove invalid characters (added part)
+    # This process removes invalid UTF-8 byte sequences.
+    # In other words, it removes characters that cannot be re-encoded to UTF-8 within Python strings.
     try:
         text = text.encode('utf-8', errors='ignore').decode('utf-8')
     except Exception as e:
-        # 이 예외는 이론적으로 발생하지 않아야 하지만, 만약을 위해 로깅합니다.
+        # This exception should not occur theoretically, but we log it just in case.
         print(
             f"Warning: Error during UTF-8 re-encoding/decoding: {e}. Original text: {text[:50]}...")
-        text = ""  # 오류 발생 시 해당 텍스트를 비움
+        text = ""  # Clear the text if an error occurs
 
     # 1-6. fix UnicodeEncodeError: 'utf-8' codec can't encode character '\udd2b' in position 2095: surrogates not allowed
     text = re.sub(r'[\uD800-\uDFFF]', '', text)
@@ -34,25 +34,25 @@ def clean_text(text):
     return text
 
 
-# 중복 제거를 위한 전역 세트(set) 선언
+# Global set for deduplication
 seen_texts = set()
 
 
 def is_high_quality_and_unique(example):
     """
-    품질 필터링(길이)과 중복 제거를 동시에 수행하는 함수
+    Function that performs quality filtering (length) and deduplication simultaneously
     """
     text = example['text']
 
-    # 2-1. 길이 필터링: 텍스트 길이가 100글자 미만이면 탈락
+    # 2-1. Length filtering: reject if text length is less than 100 characters
     if len(text) < 100:
         return False
 
-    # 2-2. 중복 필터링: 이미 등장한 텍스트면 탈락
+    # 2-2. Duplicate filtering: reject if text already appeared
     if text in seen_texts:
         return False
 
-    # 모든 필터를 통과한 경우, seen_texts에 추가하고 통과 처리
+    # If it passes all filters, add to seen_texts and mark as passed
     seen_texts.add(text)
     return True
 
@@ -67,7 +67,7 @@ def load_and_prepare_raw_datasets(dataset_configs):
     raw_datasets = []
     for ds_cfg in dataset_configs:
         print(
-            f"Loading dataset {ds_cfg.path} columns={getattr(ds_cfg, 'text_column', 'text')} split={ds_cfg.split}...")
+            f"1. Loading dataset {ds_cfg.path} columns={getattr(ds_cfg, 'text_column', 'text')} split={ds_cfg.split}...")
         ds = load_dataset(ds_cfg.path, split=ds_cfg.split)
         if getattr(ds_cfg, 'text_column', 'text') != 'text':
             ds = ds.rename_column(ds_cfg.text_column, 'text')
@@ -92,7 +92,7 @@ def load_and_prepare_raw_datasets(dataset_configs):
     print(
         f"Total CPUs: {os.cpu_count()}, Using {num_processors} processes for mapping.")
 
-    print("\n2. 텍스트 정제 및 정규화를 시작합니다... (.map)")
+    print("\n2. Starting text cleaning and normalization... (.map)")
     cleaned_dataset = combined_dataset.map(
         lambda example: {'text': clean_text(example['text'])},
         num_proc=num_processors,
@@ -102,16 +102,16 @@ def load_and_prepare_raw_datasets(dataset_configs):
         f"Cleaned dataset total rows: {cleaned_dataset.num_rows / 1_000_000:.2f}M")
 
     # 3. Quality filtering and deduplication
-    # 전역 seen_texts 세트 초기화
+    # Initialize global seen_texts set
     global seen_texts
     seen_texts = set()
 
-    print("\n3. 품질 및 중복 필터링을 시작합니다... (.filter)")
+    print("\n3. Starting quality and duplicate filtering... (.filter)")
     final_dataset = cleaned_dataset.filter(
         is_high_quality_and_unique,
-        # 'seen_texts' 세트는 전역 변수이므로 다중 처리(num_proc > 1) 시 충돌할 수 있습니다.
+        # The 'seen_texts' set is a global variable so it may conflict during multiprocessing (num_proc > 1).
         num_proc=1
-        # 대용량 데이터 처리 시에는 다른 중복 제거 방식이 필요할 수 있습니다.
+        # Other deduplication methods may be needed for large-scale data processing.
     )
 
     print(
