@@ -2,7 +2,7 @@
 Module to train tokenizer based on Krill config.
 """
 import os
-from datasets import load_dataset, concatenate_datasets, Dataset
+from krill.utils.dataset_utils import load_and_prepare_raw_datasets
 from tokenizers import (
     Tokenizer,
     AddedToken,
@@ -135,15 +135,8 @@ def train_and_save_huggingface_tokenizer(
 def main_train_tokenizer(config_path: str):
     """Main entry point for training tokenizer via CLI."""
     cfg = load_config(config_path)
-    datasets_list = []
-    for ds_cfg in cfg.datasets:
-        print(f"Loading dataset {ds_cfg.path} split={ds_cfg.split} for tokenizer training...")
-        ds = load_dataset(ds_cfg.path, split=ds_cfg.split)
-        datasets_list.append(ds)
-    if len(datasets_list) > 1:
-        dataset = concatenate_datasets(datasets_list)
-    else:
-        dataset = datasets_list[0]
+    # Load and prepare dataset for tokenizer training
+    dataset = load_and_prepare_raw_datasets(cfg.datasets)
     # Determine output directory for tokenizer
     output_dir = f"./artifacts/tknz/{cfg.hub_tokenizer_id}"
     train_and_save_huggingface_tokenizer(

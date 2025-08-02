@@ -35,17 +35,9 @@ def do_preprocess(config_path: str):
     # Prepare output directory
     os.makedirs(config.dataset_prepared_path, exist_ok=True)
 
-    # Load raw dataset(s)
-    raw_ds_list = list(load_raw_datasets(config.datasets))
-    if not raw_ds_list:
-        raise ValueError(
-            "No datasets found to preprocess. Check your config file.")
-    # Combine datasets if multiple
-    if len(raw_ds_list) > 1:
-        from datasets import concatenate_datasets
-        raw_dataset = concatenate_datasets(raw_ds_list)
-    else:
-        raw_dataset = raw_ds_list[0]
+    # Load and prepare raw datasets
+    from krill.utils.dataset_utils import load_and_prepare_raw_datasets
+    raw_dataset = load_and_prepare_raw_datasets(config.datasets)
 
     # Load tokenizer
     tokenizer = AutoTokenizer.from_pretrained(config.hub_tokenizer_id)
