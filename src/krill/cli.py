@@ -28,7 +28,7 @@ def cli():
 
     statistics = \
         f"    /¯¯¯¯{chr(92)}    🦐 Krill {__version__}: A minimal pretraining trainer for LLMs — from scratch.\n"\
-        f"   ( #|{chr(92)}_ü|   {gpu_stats.name}. Num GPUs = {DEVICE_COUNT}. Max memory: {max_memory} GB. Platform: {PLATFORM_SYSTEM}.\n"\
+        f"   ( #|{chr(92)}_ü|   {gpu_stats.name}. \033[1;43;30mNum GPUs = {DEVICE_COUNT}.\033[0m Max memory: {max_memory} GB. Platform: {PLATFORM_SYSTEM}.\n"\
         f"   ( #{chr(92)}  ƒƒ   Torch: {torch.__version__}. {gpu_stats_snippet} Triton: {triton_version}\n"\
         f"    {chr(92)} #{chr(92)}      Transformers: {transformers_version}. Bfloat16 = {str(SUPPORTS_BFLOAT16).upper()}. FA2 = {HAS_FLASH_ATTENTION}\n"\
         f'    /|||{chr(92)}     Source code: https://github.com/minpeter/krill\n'
@@ -91,6 +91,27 @@ def inspect_dataset(config: str):
 def echo():
     """Echo the command line arguments. (For testing purposes.)"""
     print("Command line arguments:", sys.argv[1:])
+
+
+@cli.command()
+def inference():
+    """Run inference on a model."""
+
+    print("IMPLEMENT ME: Inference command is not yet implemented.")
+
+
+@cli.command()
+def evaluate():
+    """Evaluate a model."""
+
+    print("IMPLEMENT ME: Evaluate command is not yet implemented.")
+
+
+@cli.command()
+def purge():
+    """Purge the cache and temporary files."""
+
+    print("IMPLEMENT ME: Purge command is not yet implemented.")
 
 
 def main():

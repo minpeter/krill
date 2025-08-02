@@ -12,6 +12,7 @@ from transformers import (
     Trainer,
     TrainingArguments,
     DataCollatorWithFlattening,
+    DataCollatorForLanguageModeling
 )
 from pytorch_optimizer import Muon
 
@@ -47,6 +48,7 @@ def do_train(config_path: str):
     # Following Qwen style: only the BOS is set in the model config; not actually used
     cfg.bos_token_id = tokenizer.eos_token_id
     cfg.eos_token_id = tokenizer.eos_token_id
+
     cfg._attn_implementation = "flash_attention_2"
 
     # Set rope_theta
@@ -71,8 +73,10 @@ def do_train(config_path: str):
     logger.info(f"Loading dataset from {config.dataset_prepared_path}")
     ds = load_from_disk(config.dataset_prepared_path)
     ds = ds.train_test_split(test_size=0.001, shuffle=True)
+
     # Data collator
-    data_collator = DataCollatorWithFlattening(return_flash_attn_kwargs=True)
+    data_collator = DataCollatorWithFlattening(
+        return_flash_attn_kwargs=True, return_position_ids=True, return_seq_idx=True)
     # data_collator = DataCollatorForLanguageModeling(
     #     tokenizer=tokenizer, mlm=False)
 
@@ -111,7 +115,7 @@ def do_train(config_path: str):
 
         torch_compile=True,
         # "default", "max-autotune", "reduce-overhead"
-        # torch_compile_mode="max-autotune",
+        torch_compile_mode="reduce-overhead",
 
         ddp_find_unused_parameters=True,
 
@@ -122,7 +126,7 @@ def do_train(config_path: str):
 
         remove_unused_columns=False,
 
-        use_liger_kernel=True,
+        use_liger_kernel=False,
 
         save_total_limit=3,
         load_best_model_at_end=True,
