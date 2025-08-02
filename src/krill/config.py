@@ -12,6 +12,7 @@ class DatasetConfig(BaseModel):
 
 class Config(BaseModel):
     sequence_len: int
+    vocab_size: int = Field(default=32000)
     hub_tokenizer_id: str
     dataset_prepared_path: str
     dataset_prepared_min_length: int = Field(default=150)

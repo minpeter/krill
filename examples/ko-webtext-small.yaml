@@ -1,6 +1,9 @@
-sequence_len: 8192
+# krill train-tokenizer
+vocab_size: 32000
 hub_tokenizer_id: minpeter/tiny-ko-tokenizer-32k-250725
 
+# krill preprocess
+sequence_len: 8192
 dataset_prepared_path: ./artifacts/webtext-8k
 dataset_prepared_min_length: 150
 
@@ -9,6 +12,7 @@ datasets:
     split: train[:10000]
     text_column: text
 
+# krill train
 hub_model_id: minpeter/webtext-8k-small-250801
 output_dir: ./artifacts/models/webtext-8k-small-250801
 

@@ -94,10 +94,12 @@ def echo():
 
 
 @cli.command()
-def train_tokenizer():
+@click.argument("config", type=click.Path(exists=True))
+def train_tokenizer(config: str):
     """Train a tokenizer."""
+    from krill.train_tokenizer import main_train_tokenizer
+    main_train_tokenizer(config)
 
-    print("IMPLEMENT ME: Train tokenizer command is not yet implemented.")
 
 @cli.command()
 def inference():
