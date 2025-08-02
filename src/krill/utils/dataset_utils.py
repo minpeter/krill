@@ -2,27 +2,7 @@
 Utility functions for dataset loading.
 """
 
-from datasets import load_dataset, concatenate_datasets, Dataset
-from typing import List, Any
-
-
-def load_and_concatenate_datasets(
-    dataset_configs: List[Any]
-) -> Dataset:
-    """
-    Load and concatenate multiple datasets based on configurations.
-    Each config should have 'path' and 'split' attributes.
-    """
-    datasets = []
-    for ds_cfg in dataset_configs:
-        print(f"Loading dataset {ds_cfg.path} split={ds_cfg.split}...")
-        ds = load_dataset(ds_cfg.path, split=ds_cfg.split)
-        datasets.append(ds)
-    if not datasets:
-        raise ValueError("No datasets to load.")
-    if len(datasets) > 1:
-        return concatenate_datasets(datasets)
-    return datasets[0]
+from datasets import load_dataset, concatenate_datasets
 
 
 def load_and_prepare_raw_datasets(dataset_configs):
