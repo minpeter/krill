@@ -11,7 +11,7 @@ def do_inspect_dataset(config_path: str):
     # Load config centrally
     config = load_config(config_path)
     print(
-        f"🦐 Krill: Starting to peek data for {config.dataset_prepared_path}...")
+        f"🦐 Krill: Starting to inspect packed dataset for {config.dataset_prepared_path}...")
 
     # Load the preprocessed dataset
     dataset = load_from_disk(config.dataset_prepared_path)
