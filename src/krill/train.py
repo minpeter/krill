@@ -94,9 +94,14 @@ def do_train(config_path: str):
 
         eval_strategy="steps",
         save_strategy="steps",
-        eval_steps=1_000,
-        save_steps=1_000,
+        # eval_steps=1_000,
+        # save_steps=1_000,
+        eval_steps=100,
+        save_steps=100,
         logging_steps=1,
+
+
+        # https://huggingface.co/docs/transformers/v4.53.3/en/trainer#optimizations
 
         auto_find_batch_size=True,
         # per_device_train_batch_size=4,
@@ -113,9 +118,9 @@ def do_train(config_path: str):
         bf16=True,
 
 
-        torch_compile=True,
-        # "default", "max-autotune", "reduce-overhead"
-        torch_compile_mode="reduce-overhead",
+        # torch_compile=True,
+        # # "default", "max-autotune", "reduce-overhead"
+        # torch_compile_mode="reduce-overhead",
 
         ddp_find_unused_parameters=True,
 
@@ -126,12 +131,14 @@ def do_train(config_path: str):
 
         remove_unused_columns=False,
 
-        use_liger_kernel=False,
+        use_liger_kernel=True,
+        # neftune_noise_alpha= 0.1,
 
         save_total_limit=3,
-        load_best_model_at_end=True,
-        metric_for_best_model="eval_loss",
-        greater_is_better=False,
+
+        # metric_for_best_model="eval_loss",
+        # load_best_model_at_end=True,
+        # greater_is_better=False,
     )
     trainer = Trainer(
         model=model,
