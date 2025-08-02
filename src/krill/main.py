@@ -10,7 +10,7 @@ import torch
 from krill import DEVICE_TYPE, DEVICE_COUNT, SUPPORTS_BFLOAT16, HAS_FLASH_ATTENTION, PLATFORM_SYSTEM
 
 
-__version__ = "2025.8.1"
+__version__ = "2025.8.2"
 
 
 @click.group()
