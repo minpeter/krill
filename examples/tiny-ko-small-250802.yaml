@@ -25,12 +25,12 @@ datasets:
 hub_model_id: minpeter/tiny-ko-small-250802
 output_dir: ./artifacts/models/tiny-ko-small-250802
 
-num_epochs: 10
+num_epochs: 1
 learning_rate: 1e-3
-weight_decay: 0.1
+weight_decay: 0.01
 optimizer: muon
 
-micro_batch_size: 128
+micro_batch_size: 32
 gradient_accumulation_steps: 1
 
 model_config_name: small
