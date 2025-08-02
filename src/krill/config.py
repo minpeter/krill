@@ -5,10 +5,12 @@ import yaml
 from pydantic import BaseModel, Field
 from typing import List, Optional
 
+
 class DatasetConfig(BaseModel):
     path: str
     split: str = Field(default="train")
     text_column: str = Field(default="text")
+
 
 class Config(BaseModel):
     sequence_len: int
@@ -28,6 +30,7 @@ class Config(BaseModel):
     # The number of samples to include in each batch. This is the number of samples sent to
     # each GPU. Batch size per gpu = micro_batch_size * gradient_accumulation_steps
     micro_batch_size: int | None = Field(default=1)
+
 
 def load_config(path: str) -> Config:
     """Load YAML configuration and validate it against the Config model."""

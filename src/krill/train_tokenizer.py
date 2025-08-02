@@ -33,10 +33,14 @@ def train_and_save_huggingface_tokenizer(
         AddedToken("</tool_call>", special=False, normalized=False),
         AddedToken("<think>", special=False, normalized=False),
         AddedToken("</think>", special=False, normalized=False),
-        AddedToken("<|unused_special_token_0|>", special=True, normalized=False),
-        AddedToken("<|unused_special_token_1|>", special=True, normalized=False),
-        AddedToken("<|unused_special_token_2|>", special=True, normalized=False),
-        AddedToken("<|unused_special_token_3|>", special=True, normalized=False),
+        AddedToken("<|unused_special_token_0|>",
+                   special=True, normalized=False),
+        AddedToken("<|unused_special_token_1|>",
+                   special=True, normalized=False),
+        AddedToken("<|unused_special_token_2|>",
+                   special=True, normalized=False),
+        AddedToken("<|unused_special_token_3|>",
+                   special=True, normalized=False),
     ]
 
     vocab_size = target_vocab_size - len(additional_tokens)
@@ -62,7 +66,8 @@ def train_and_save_huggingface_tokenizer(
     tokenizer.decoder = decoders.ByteLevel()
     byte_level_alphabet = pre_tokenizers.ByteLevel.alphabet()
     chatml_reserved_words = ["system", "user", "assistant", "tool"]
-    initial_alphabet = sorted(list(set(byte_level_alphabet + chatml_reserved_words)))
+    initial_alphabet = sorted(
+        list(set(byte_level_alphabet + chatml_reserved_words)))
 
     trainer = trainers.BpeTrainer(
         vocab_size=vocab_size,
