@@ -103,8 +103,8 @@ def do_train(config_path: str):
 
 
         # auto_find_batch_size=True,
-        per_device_train_batch_size=128,
-        # gradient_accumulation_steps=2,
+        per_device_train_batch_size=config.micro_batch_size,
+        gradient_accumulation_steps=config.gradient_accumulation_steps,
 
 
         num_train_epochs=config.num_epochs,

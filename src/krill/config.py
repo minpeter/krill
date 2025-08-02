@@ -23,6 +23,10 @@ class Config(BaseModel):
     weight_decay: float = Field(default=0.01)
     optimizer: str = Field(default="muon")
     model_config_name: str = Field(default="small")
+    gradient_accumulation_steps: int = Field(default=1)
+    # The number of samples to include in each batch. This is the number of samples sent to
+    # each GPU. Batch size per gpu = micro_batch_size * gradient_accumulation_steps
+    micro_batch_size: int | None = Field(default=1)
 
 def load_config(path: str) -> Config:
     """Load YAML configuration and validate it against the Config model."""
