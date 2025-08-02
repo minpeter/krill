@@ -8,24 +8,6 @@ from krill.config import load_config, DatasetConfig
 from krill.utils.inspect_dataset import inspect_pretrain_dataset
 
 
-def load_raw_datasets(dataset_config: DatasetConfig):
-    print("Loading raw datasets...")
-    for ds in dataset_config:
-        print(
-            f"Loading dataset {ds.path} columns={ds.text_column} split={ds.split}...")
-        dataset = load_dataset(ds.path, split=ds.split)
-
-        # Rename the text column to "text" for consistency
-        if ds.text_column != "text":
-            dataset = dataset.rename_column(ds.text_column, "text")
-
-        # Drop all columns except "text"
-        dataset = dataset.remove_columns(
-            [col for col in dataset.column_names if col != "text"])
-
-        yield dataset
-
-
 def do_preprocess(config_path: str):
     """Preprocesses the data based on the YAML config file."""
     print(f"🦐 Krill: Starting preprocessing with config: {config_path}")
