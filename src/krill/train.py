@@ -1,3 +1,4 @@
+import argparse
 import os
 import math
 import logging
@@ -161,3 +162,17 @@ def do_train(config_path: str):
         # resume_from_checkpoint="last-checkpoint" # resume from the huggingface_hub last checkpoint
     )
     print(f"🚀 [Train] Finished. Model saved to {config.output_dir}")
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Train a model with Krill.")
+    parser.add_argument("config",
+                        type=str,
+                        help="Path to the YAML config file.")
+    args = parser.parse_args()
+
+    do_train(args.config)
+
+
+if __name__ == "__main__":
+    main()
