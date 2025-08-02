@@ -94,6 +94,12 @@ def echo():
 
 
 @cli.command()
+def train_tokenizer():
+    """Train a tokenizer."""
+
+    print("IMPLEMENT ME: Train tokenizer command is not yet implemented.")
+
+@cli.command()
 def inference():
     """Run inference on a model."""
 
