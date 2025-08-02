@@ -1,5 +1,4 @@
-import argparse
-from .config import load_config
+
 import os
 import math
 import logging
@@ -16,10 +15,13 @@ from transformers import (
 )
 from pytorch_optimizer import Muon
 
+from krill.utils.config import load_config
+
 
 def do_train(config_path: str):
     """Trains the model using the given YAML config file."""
-    print(f"🚀 [Train] Starting training with config: {config_path}")
+    print(f"🦐 Krill: Starting training with config: {config_path}")
+
     # Load config centrally
     config = load_config(config_path)
     # Extract settings from Pydantic model
@@ -159,14 +161,3 @@ def do_train(config_path: str):
         # resume_from_checkpoint="last-checkpoint" # resume from the huggingface_hub last checkpoint
     )
     print(f"🚀 [Train] Finished. Model saved to {config.output_dir}")
-
-
-def main():
-    parser = argparse.ArgumentParser(description="Krill Training Script")
-    parser.add_argument("config", help="Path to the configuration file.")
-    args = parser.parse_args()
-    do_train(args.config)
-
-
-if __name__ == "__main__":
-    main()

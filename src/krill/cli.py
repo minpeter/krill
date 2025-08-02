@@ -91,8 +91,8 @@ def inspect_dataset(config: str):
 @click.argument("config", type=click.Path(exists=True))
 def train_tokenizer(config: str):
     """Train a tokenizer."""
-    from krill.train_tokenizer import main_train_tokenizer
-    main_train_tokenizer(config)
+    from krill.train_tokenizer import do_train_tokenizer
+    do_train_tokenizer(config)
 
 
 @cli.command()

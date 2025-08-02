@@ -2,7 +2,7 @@
 from datasets import load_from_disk
 from transformers import AutoTokenizer
 
-from krill.config import load_config
+from krill.utils.config import load_config
 from krill.utils.inspect_dataset import inspect_pretrain_dataset
 
 

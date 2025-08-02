@@ -1,10 +1,8 @@
-import argparse
 import os
-from datasets import load_dataset
 from transformers import AutoTokenizer
 from trl import pack_dataset
 
-from krill.config import load_config, DatasetConfig
+from krill.utils.config import load_config
 from krill.utils.inspect_dataset import inspect_pretrain_dataset
 
 
@@ -116,14 +114,3 @@ To inspect the packed dataset, you can use the `peekdata` command:
 Or to train a model with this dataset, use:
 \033[1;34m krill train {path}\033[0m
 """.format(path=config_path))
-
-
-def main():
-    parser = argparse.ArgumentParser(description="Krill Preprocessing Script")
-    parser.add_argument("config", help="Path to the configuration file.")
-    args = parser.parse_args()
-    do_preprocess(args.config)
-
-
-if __name__ == "__main__":
-    main()

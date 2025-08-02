@@ -15,7 +15,7 @@ from tokenizers import (
 )
 from transformers import PreTrainedTokenizerFast, AutoTokenizer
 
-from krill.config import load_config
+from krill.utils.config import load_config
 
 
 def train_and_save_huggingface_tokenizer(
@@ -137,7 +137,7 @@ def train_and_save_huggingface_tokenizer(
         )
 
 
-def main_train_tokenizer(config_path: str):
+def do_train_tokenizer(config_path: str):
     """Main entry point for training tokenizer via CLI."""
     cfg = load_config(config_path)
     # Load and prepare dataset for tokenizer training
