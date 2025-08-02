@@ -1,0 +1,36 @@
+# krill train-tokenizer
+vocab_size: 32000
+hub_tokenizer_id: minpeter/tiny-ko-tokenizer-32k-250725
+
+# krill preprocess
+sequence_len: 8192
+dataset_prepared_path: ./artifacts/tiny-ko-small-250802
+dataset_prepared_min_length: 150
+
+datasets:
+  - path: HAERAE-HUB/KOREAN-WEBTEXT
+    split: train[:10000]
+    text_column: text
+  - path: HAERAE-HUB/KOREAN-SyntheticText-1.5B
+    split: train[:10000]
+    text_column: text
+  - path: minpeter/fineweb-2-edu-korean
+    split: train[:10000]
+    text_column: text
+  - path: heegyu/korean-petitions
+    split: train
+    text_column: content
+
+# krill train
+hub_model_id: minpeter/tiny-ko-small-250802
+output_dir: ./artifacts/models/tiny-ko-small-250802
+
+num_epochs: 10
+learning_rate: 1e-3
+weight_decay: 0.1
+optimizer: muon
+
+micro_batch_size: 128
+gradient_accumulation_steps: 1
+
+model_config_name: small
