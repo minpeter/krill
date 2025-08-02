@@ -49,7 +49,7 @@ def do_inference(model_id: str, inspect: bool = False):
         max_new_tokens=128,
         do_sample=True,
         top_p=0.95,
-        temperature=0.4,
+        temperature=0.6,
         repetition_penalty=1.5,
         pad_token_id=tokenizer.eos_token_id
     )
