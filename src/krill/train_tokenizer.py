@@ -2,7 +2,7 @@
 Module to train tokenizer based on Krill config.
 """
 import os
-from krill.utils.dataset_utils import load_and_prepare_raw_datasets
+
 from tokenizers import (
     Tokenizer,
     AddedToken,
@@ -14,12 +14,14 @@ from tokenizers import (
     trainers,
 )
 from transformers import PreTrainedTokenizerFast, AutoTokenizer
+from datasets import Dataset, DatasetDict
 
 from krill.utils.config import load_config
+from krill.utils.dataset_utils import load_and_prepare_raw_datasets
 
 
 def train_and_save_huggingface_tokenizer(
-    dataset: Dataset,
+    dataset: Dataset | DatasetDict,
     output_dir: str,
     target_vocab_size: int,
     huggingface_hub_id: str,
