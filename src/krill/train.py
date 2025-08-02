@@ -101,11 +101,10 @@ def do_train(config_path: str):
         logging_steps=1,
 
 
-        # https://huggingface.co/docs/transformers/v4.53.3/en/trainer#optimizations
 
-        auto_find_batch_size=True,
-        # per_device_train_batch_size=4,
-        gradient_accumulation_steps=2,
+        # auto_find_batch_size=True,
+        per_device_train_batch_size=128,
+        # gradient_accumulation_steps=2,
 
 
         num_train_epochs=config.num_epochs,
@@ -118,9 +117,6 @@ def do_train(config_path: str):
         bf16=True,
 
 
-        # torch_compile=True,
-        # # "default", "max-autotune", "reduce-overhead"
-        # torch_compile_mode="reduce-overhead",
 
         ddp_find_unused_parameters=True,
 
@@ -131,8 +127,13 @@ def do_train(config_path: str):
 
         remove_unused_columns=False,
 
+        # https://huggingface.co/docs/transformers/v4.53.3/en/trainer#optimizations
         use_liger_kernel=True,
         # neftune_noise_alpha= 0.1,
+
+        # torch_compile=True,
+        # # "default", "max-autotune", "reduce-overhead"
+        # torch_compile_mode="reduce-overhead",
 
         save_total_limit=3,
 
