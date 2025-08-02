@@ -102,10 +102,11 @@ def echo():
 
 
 @cli.command()
-def inference():
-    """Run inference on a model."""
-
-    print("IMPLEMENT ME: Inference command is not yet implemented.")
+@click.argument("model", type=str)
+def inference(model: str):
+    """Run interactive inference on a text generation model."""
+    from krill.inference import do_inference
+    do_inference(model)
 
 
 @cli.command()
