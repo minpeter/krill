@@ -3,6 +3,12 @@ from transformers import AutoTokenizer, AutoConfig, GPT2LMHeadModel
 import torch
 
 
+def inspect_token_prediction_info():
+    print("🔍 Inspect mode enabled (experimental)")
+    print("\033[48;2;255;100;100mEntropy (red background)\033[0m: token prediction uncertainty (red=high uncertainty, grey=low).")
+    print("\033[48;2;100;100;255mLoss (blue background)\033[0m: token prediction error (blue=high error, grey=low).")
+
+
 def inspect_token_predictions(tokenizer, model, text):
     """Compute per-token loss, entropy, top-5 predictions and display colored shading."""
     # Tokenize input and move tensors to the model's device
@@ -46,12 +52,7 @@ def inspect_token_predictions(tokenizer, model, text):
         rgl = int((1 - nl) * 255)
         loss_tokens.append(f"\033[48;2;{rgl};{rgl};255m{tok}\033[0m")
 
-    print("Entropy: token prediction uncertainty (red=high uncertainty, grey=low).")
-    print("Loss: token prediction error (blue=high error, grey=low).")\
-
-    print("Entropy shading:")
     print("".join(entropy_tokens))
-    print("Loss shading:")
     print("".join(loss_tokens))
     return {
         'tokens': tokens,

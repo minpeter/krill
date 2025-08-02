@@ -13,7 +13,8 @@ def do_inference(model_id: str, inspect: bool = False):
     print(f"⚓️ Loading model: {model_id}...")
 
     if inspect:
-        print("🔍 Inspect mode enabled (experimental)")
+        from krill.utils.inspect_model import inspect_token_prediction_info
+        inspect_token_prediction_info()
 
     # Load tokenizer and model pipeline
     try:
@@ -38,7 +39,7 @@ def do_inference(model_id: str, inspect: bool = False):
             torch_dtype=torch.bfloat16
         )
         streamer = TextIteratorStreamer(
-            tokenizer, skip_prompt=True, skip_special_tokens=True)
+            tokenizer, skip_prompt=True, skip_special_tokens=False)
         print("✅ Model loaded! Enter 'quit' or 'exit' to quit. 🏴‍☠️")
     except Exception as e:
         print(f"Error loading model: {e}", file=sys.stderr)
