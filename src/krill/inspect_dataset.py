@@ -3,7 +3,7 @@ from datasets import load_from_disk
 from transformers import AutoTokenizer
 
 from krill.config import load_config
-from krill.libs.inspect_dataset import inspect_pretrain_dataset
+from krill.utils.inspect_dataset import inspect_pretrain_dataset
 
 
 def do_inspect_pretrain_dataset(config_path: str):
