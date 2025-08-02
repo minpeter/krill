@@ -14,7 +14,8 @@ from transformers import (
     DataCollatorWithFlattening,
     DataCollatorForLanguageModeling
 )
-from pytorch_optimizer import Muon
+# from pytorch_optimizer import Muon
+from krill.utils.muon_optimizer import Muon
 
 from krill.utils.config import load_config
 

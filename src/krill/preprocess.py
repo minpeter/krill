@@ -94,7 +94,7 @@ def do_preprocess(config_path: str):
     print(f"Packed dataset rows: {len(packed)}")
     total_tokens = sum(len(sample["input_ids"]) for sample in packed)
     print(
-        f"Total tokens in packed dataset: \033[45;97m{total_tokens / 1_000_000:.3f}B\033[0m")
+        f"Total tokens in packed dataset: \033[45;97m{total_tokens / 1_000_000_000:.3f}B\033[0m")
 
     if len(packed) > 0:
         # Check for any samples that do not match the expected context length
