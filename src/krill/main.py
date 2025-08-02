@@ -73,26 +73,30 @@ def train(ctx, config: str):
 @click.argument("config", type=click.Path(exists=True))
 def preprocess(config: str):
     """Preprocess a dataset."""
-
+    from krill.utils.config import load_config
     from krill.preprocess import do_preprocess
-    do_preprocess(config)
+    cfg = load_config(config)
+    do_preprocess(cfg)
 
 
 @cli.command()
 @click.argument("config", type=click.Path(exists=True))
 def inspect_dataset(config: str):
     """Peek into the dataset after preprocessing."""
-
+    from krill.utils.config import load_config
     from krill.inspect_dataset import do_inspect_dataset
-    do_inspect_dataset(config)
+    cfg = load_config(config)
+    do_inspect_dataset(cfg)
 
 
 @cli.command()
 @click.argument("config", type=click.Path(exists=True))
 def train_tokenizer(config: str):
     """Train a tokenizer."""
+    from krill.utils.config import load_config
     from krill.train_tokenizer import do_train_tokenizer
-    do_train_tokenizer(config)
+    cfg = load_config(config)
+    do_train_tokenizer(cfg)
 
 
 @cli.command()
@@ -104,9 +108,27 @@ def echo():
 @cli.command()
 @click.argument("model", type=str)
 def inference(model: str):
-    """Run interactive inference on a text generation model."""
+    """Run interactive inference on a text generation model or a YAML config file."""
+    import os
+    import sys
+    model_id = model
+    # If a YAML config is passed, load hub_model_id
+    if os.path.isfile(model) and model.lower().endswith((".yaml", ".yml")):
+        print(f"⚓️ Loading config file: {model}...")
+        try:
+            import yaml
+            with open(model, "r") as f:
+                cfg = yaml.safe_load(f)
+            model_id = cfg.get("hub_model_id")
+            if not model_id:
+                raise KeyError("hub_model_id not found in config")
+        except Exception as e:
+            print(f"Error loading config: {e}", file=sys.stderr)
+            sys.exit(1)
+        print(f"⚓️ Using model from config: {model_id}...")
+    # Delegate to core inference logic
     from krill.inference import do_inference
-    do_inference(model)
+    do_inference(model_id)
 
 
 @cli.command()

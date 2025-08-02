@@ -12,7 +12,7 @@ class DatasetConfig(BaseModel):
     text_column: str = Field(default="text")
 
 
-class Config(BaseModel):
+class KrillConfig(BaseModel):
     sequence_len: int
     vocab_size: int = Field(default=32000)
     hub_tokenizer_id: str
@@ -32,8 +32,8 @@ class Config(BaseModel):
     micro_batch_size: int | None = Field(default=1)
 
 
-def load_config(path: str) -> Config:
+def load_config(path: str) -> KrillConfig:
     """Load YAML configuration and validate it against the Config model."""
     with open(path, 'r') as f:
         data = yaml.safe_load(f)
-    return Config(**data)
+    return KrillConfig(**data)

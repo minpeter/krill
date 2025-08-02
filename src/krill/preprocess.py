@@ -3,15 +3,13 @@ import os
 from transformers import AutoTokenizer
 from trl import pack_dataset
 
-from krill.utils.config import load_config
+from krill.utils.config import KrillConfig
 from krill.utils.inspect_dataset import inspect_pretrain_dataset
 
 
-def do_preprocess(config_path: str):
-    """Preprocesses the data based on the YAML config file."""
-    print(f"🦐 Krill: Starting preprocessing with config: {config_path}")
-    # Load config centrally
-    config = load_config(config_path)
+def do_preprocess(config: KrillConfig):
+    """Preprocesses the data based on the loaded Config object."""
+    print("🦐 Krill: Starting preprocessing...")
 
     # Prepare output directory
     os.makedirs(config.dataset_prepared_path, exist_ok=True)
@@ -116,8 +114,8 @@ def do_preprocess(config_path: str):
     )
 
     print("""
-To inspect the packed dataset, you can use the `peekdata` command:
-\033[1;34m krill inspect-dataset {path}\033[0m
-Or to train a model with this dataset, use:
-\033[1;34m krill train {path}\033[0m
-""".format(path=config_path))
+To inspect the packed dataset, use:
+  krill inspect-dataset <config_file>
+To train a model with this dataset, use:
+  krill train <config_file>
+""")

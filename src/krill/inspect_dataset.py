@@ -2,14 +2,12 @@
 from datasets import load_from_disk
 from transformers import AutoTokenizer
 
-from krill.utils.config import load_config
+from krill.utils.config import KrillConfig
 from krill.utils.inspect_dataset import inspect_pretrain_dataset
 
 
-def do_inspect_dataset(config_path: str):
-    """Preprocesses the data based on the YAML config file."""
-    # Load config centrally
-    config = load_config(config_path)
+def do_inspect_dataset(config: KrillConfig):
+    """Inspect a packed dataset based on the loaded Config object."""
     print(
         f"🦐 Krill: Starting to inspect packed dataset for {config.dataset_prepared_path}...")
 

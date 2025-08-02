@@ -11,6 +11,7 @@ from transformers import TextIteratorStreamer, AutoTokenizer, GenerationConfig
 def do_inference(model: str):
     """Interactive inference on a text generation model with streaming output."""
     print(f"⚓️ Loading model: {model}...")
+    # Load tokenizer and model pipeline
     try:
         tokenizer = AutoTokenizer.from_pretrained(model)
         pipeline = transformers.pipeline(

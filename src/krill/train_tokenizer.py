@@ -16,7 +16,7 @@ from tokenizers import (
 from transformers import PreTrainedTokenizerFast, AutoTokenizer
 from datasets import Dataset, DatasetDict
 
-from krill.utils.config import load_config
+from krill.utils.config import KrillConfig
 from krill.utils.dataset_utils import load_and_prepare_raw_datasets
 
 
@@ -139,16 +139,15 @@ def train_and_save_huggingface_tokenizer(
         )
 
 
-def do_train_tokenizer(config_path: str):
-    """Main entry point for training tokenizer via CLI."""
-    cfg = load_config(config_path)
+def do_train_tokenizer(config: KrillConfig):
+    """Main entry point for training tokenizer via CLI using loaded Config object."""
     # Load and prepare dataset for tokenizer training
-    dataset = load_and_prepare_raw_datasets(cfg.datasets)
+    dataset = load_and_prepare_raw_datasets(config.datasets)
     # Determine output directory for tokenizer
-    output_dir = f"./artifacts/tknz/{cfg.hub_tokenizer_id}"
+    output_dir = f"./artifacts/tknz/{config.hub_tokenizer_id}"
     train_and_save_huggingface_tokenizer(
         dataset=dataset,
         output_dir=output_dir,
-        target_vocab_size=cfg.vocab_size,
-        huggingface_hub_id=cfg.hub_tokenizer_id,
+        target_vocab_size=config.vocab_size,
+        huggingface_hub_id=config.hub_tokenizer_id,
     )
