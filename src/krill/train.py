@@ -33,6 +33,7 @@ def do_train(config_path: str):
         tokenizer.pad_token = tokenizer.eos_token
     # Model config
     model_configs = {
+        "micro": LlamaConfig(initializer_range=(1 / math.sqrt(256)), hidden_size=256, num_hidden_layers=12, intermediate_size=1024, tie_word_embeddings=True, num_attention_heads=4, num_key_value_heads=2),
         "small": LlamaConfig(initializer_range=(1 / math.sqrt(768)), hidden_size=768, num_hidden_layers=27, intermediate_size=1920, tie_word_embeddings=True, num_attention_heads=12, num_key_value_heads=4),
     }
 
