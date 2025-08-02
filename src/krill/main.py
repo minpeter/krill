@@ -140,12 +140,5 @@ def evaluate():
     print("IMPLEMENT ME: Evaluate command is not yet implemented.")
 
 
-@cli.command()
-def purge():
-    """Purge the cache and temporary files."""
-
-    print("IMPLEMENT ME: Purge command is not yet implemented.")
-
-
 def main():
     cli()
