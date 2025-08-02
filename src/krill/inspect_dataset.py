@@ -6,7 +6,7 @@ from krill.config import load_config
 from krill.utils.inspect_dataset import inspect_pretrain_dataset
 
 
-def do_inspect_pretrain_dataset(config_path: str):
+def do_inspect_dataset(config_path: str):
     """Preprocesses the data based on the YAML config file."""
     # Load config centrally
     config = load_config(config_path)

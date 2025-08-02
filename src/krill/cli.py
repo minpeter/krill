@@ -83,14 +83,8 @@ def preprocess(config: str):
 def inspect_dataset(config: str):
     """Peek into the dataset after preprocessing."""
 
-    from krill.inspect_dataset import do_inspect_pretrain_dataset
-    do_inspect_pretrain_dataset(config)
-
-
-@cli.command()
-def echo():
-    """Echo the command line arguments. (For testing purposes.)"""
-    print("Command line arguments:", sys.argv[1:])
+    from krill.inspect_dataset import do_inspect_dataset
+    do_inspect_dataset(config)
 
 
 @cli.command()
@@ -99,6 +93,12 @@ def train_tokenizer(config: str):
     """Train a tokenizer."""
     from krill.train_tokenizer import main_train_tokenizer
     main_train_tokenizer(config)
+
+
+@cli.command()
+def echo():
+    """Echo the command line arguments. (For testing purposes.)"""
+    print("🦐 Krill: EEeeeecccchooo!")
 
 
 @cli.command()
