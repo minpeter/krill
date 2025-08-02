@@ -1,6 +1,7 @@
 import click
 import subprocess
 import sys
+import os
 
 from transformers import __version__ as transformers_version
 from triton import __version__ as triton_version
@@ -107,10 +108,10 @@ def echo():
 
 @cli.command()
 @click.argument("model", type=str)
-def inference(model: str):
+@click.option("--inspect", is_flag=True, default=False, help="Enable inspect mode (experimental)")
+def inference(model: str, inspect: bool):
     """Run interactive inference on a text generation model or a YAML config file."""
-    import os
-    import sys
+
     model_id = model
     # If a YAML config is passed, load hub_model_id
     if os.path.isfile(model) and model.lower().endswith((".yaml", ".yml")):
@@ -126,9 +127,10 @@ def inference(model: str):
             print(f"Error loading config: {e}", file=sys.stderr)
             sys.exit(1)
         print(f"⚓️ Using model from config: {model_id}...")
+
     # Delegate to core inference logic
     from krill.inference import do_inference
-    do_inference(model_id)
+    do_inference(model_id, inspect)
 
 
 @cli.command()
