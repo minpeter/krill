@@ -5,6 +5,7 @@ from transformers import AutoTokenizer
 from trl import pack_dataset
 
 from krill.config import load_config, DatasetConfig
+from krill.libs.inspect_dataset import inspect_pretrain_dataset
 
 
 def load_raw_datasets(dataset_config: DatasetConfig):
@@ -83,9 +84,6 @@ def do_preprocess(config_path: str):
     total_tokens_before_filter = sum(lengths)
     total_tokens_after_filter = sum(lengths[i] for i in selected)
     filter_dropped_tokens = total_tokens_before_filter - total_tokens_after_filter
-    print(
-        f"\n\033[1;41;97mDropped {filter_dropped_tokens} tokens\033[0m during filtering (samples shorter than min_length={config.dataset_prepared_min_length})\n"
-    )
     tokenized = tokenized.select(selected)
 
     # Pack sequences
@@ -93,19 +91,31 @@ def do_preprocess(config_path: str):
     packed = pack_dataset(tokenized, seq_length=config.sequence_len, strategy="wrapped",
                           map_kwargs={"batch_size": len(tokenized)})
     # Drop incomplete last chunk and record dropped tokens
+    last_dropped_chunk_length = 0
     if len(packed) > 0:
         last_len = len(packed[-1]["input_ids"])
         if last_len < config.sequence_len:
-            print(
-                f"\n\033[1;41;97mDropped {last_len} tokens\033[0m from final incomplete chunk (length {last_len} < sequence_len={config.sequence_len})"
-            )
+            last_dropped_chunk_length = last_len
             packed = packed.select(list(range(len(packed) - 1)))
-
-    print(f"\nOriginal dataset rows: {len(raw_dataset)}")
-    print(f"Packed dataset rows: {len(packed)}")
 
     # Save
     packed.save_to_disk(config.dataset_prepared_path)
+
+    inspect_pretrain_dataset(
+        dataset=packed,
+        tokenizer=tokenizer,
+        show_example_rows_limit=1
+    )
+
+    print(
+        f"\n\033[1;41;97mDropped {filter_dropped_tokens} tokens\033[0m during filtering (samples shorter than min_length={config.dataset_prepared_min_length})"
+    )
+    print(
+        f"\n\033[1;41;97mDropped {last_dropped_chunk_length} tokens\033[0m from final incomplete chunk (length {last_dropped_chunk_length} < sequence_len={config.sequence_len})"
+    )
+
+    print(f"\nOriginal dataset rows: {len(raw_dataset)}")
+    print(f"Packed dataset rows: {len(packed)}")
 
     if len(packed) > 0:
         # Check for any samples that do not match the expected context length
@@ -128,7 +138,7 @@ def do_preprocess(config_path: str):
 
     print("""
 To inspect the packed dataset, you can use the `peekdata` command:
-\033[1;34m krill peekdata {path}\033[0m
+\033[1;34m krill inspect-dataset {path}\033[0m
 Or to train a model with this dataset, use:
 \033[1;34m krill train {path}\033[0m
 """.format(path=config_path))

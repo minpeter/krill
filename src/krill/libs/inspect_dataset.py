@@ -1,27 +1,14 @@
 import re
-from datasets import load_from_disk
-from transformers import AutoTokenizer
-
-from krill.config import load_config
+from typing import Any
+from datasets import Dataset, DatasetDict
 
 
-def do_peekdata(config_path: str):
-    """Preprocesses the data based on the YAML config file."""
-    # Load config centrally
-    config = load_config(config_path)
-    print(
-        f"🦐 Krill: Starting to peek data for {config.dataset_prepared_path}...")
-
-    # Load the preprocessed dataset
-    dataset = load_from_disk(config.dataset_prepared_path)
-    tokenizer = AutoTokenizer.from_pretrained(config.hub_tokenizer_id)
-
-    print(f"🦐 Krill: Loaded dataset with {len(dataset)} examples.")
-
-    # >>>>>> Preview of the tokenized and packed results >>>>>>
-    SHOW_EXAMPLE_ROWS_LIMIT = 3
-
-    for i in range(min(SHOW_EXAMPLE_ROWS_LIMIT, len(dataset))):
+def inspect_pretrain_dataset(
+    dataset: Dataset | DatasetDict,
+    tokenizer: Any,
+    show_example_rows_limit: int = 3
+):
+    for i in range(min(show_example_rows_limit, len(dataset))):
         sample = dataset[i]
 
         colored_items = []
@@ -65,4 +52,3 @@ def do_peekdata(config_path: str):
             idx += 1
         print(
             f"\n\033[1;43;30m[PACKED SAMPLE {i}]\033[0m {' '.join(colored_items)}")
-    # <<<<<< End of preview of the tokenized and packed results <<<<<<

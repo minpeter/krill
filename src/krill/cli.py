@@ -12,6 +12,7 @@ from krill import DEVICE_TYPE, DEVICE_COUNT, SUPPORTS_BFLOAT16, HAS_FLASH_ATTENT
 
 __version__ = "2025.8.1"
 
+
 @click.group()
 def cli():
     """A CLI tool for krill, inspired by axolotl and unsloth."""
@@ -24,15 +25,16 @@ def cli():
         raise ValueError(f"🦐 Krill: Unsupported device type: {DEVICE_TYPE}")
 
     max_memory = round(gpu_stats.total_memory / 1024 / 1024 / 1024, 3)
-    
+
     statistics = \
-    f"    /¯¯¯¯{chr(92)}    🦐 Krill {__version__}: A minimal pretraining trainer for LLMs — from scratch.\n"\
-    f"   ( #|{chr(92)}_ü|   {gpu_stats.name}. Num GPUs = {DEVICE_COUNT}. Max memory: {max_memory} GB. Platform: {PLATFORM_SYSTEM}.\n"\
-    f"   ( #{chr(92)}  ƒƒ   Torch: {torch.__version__}. {gpu_stats_snippet} Triton: {triton_version}\n"\
-    f"    {chr(92)} #{chr(92)}      Transformers: {transformers_version}. Bfloat16 = {str(SUPPORTS_BFLOAT16).upper()}. FA2 = {HAS_FLASH_ATTENTION}\n"\
-    f'    /|||{chr(92)}     Source code: https://github.com/minpeter/krill\n'
+        f"    /¯¯¯¯{chr(92)}    🦐 Krill {__version__}: A minimal pretraining trainer for LLMs — from scratch.\n"\
+        f"   ( #|{chr(92)}_ü|   {gpu_stats.name}. Num GPUs = {DEVICE_COUNT}. Max memory: {max_memory} GB. Platform: {PLATFORM_SYSTEM}.\n"\
+        f"   ( #{chr(92)}  ƒƒ   Torch: {torch.__version__}. {gpu_stats_snippet} Triton: {triton_version}\n"\
+        f"    {chr(92)} #{chr(92)}      Transformers: {transformers_version}. Bfloat16 = {str(SUPPORTS_BFLOAT16).upper()}. FA2 = {HAS_FLASH_ATTENTION}\n"\
+        f'    /|||{chr(92)}     Source code: https://github.com/minpeter/krill\n'
 
     print(statistics)
+
 
 @cli.command(context_settings={"ignore_unknown_options": True, "allow_extra_args": True})
 @click.argument("config", type=click.Path(exists=True))
@@ -40,7 +42,7 @@ def cli():
 def train(ctx, config: str):
     """
     Train a model using accelerate.
-    
+
     Any extra arguments (e.g., --num_processes=2) are passed to 'accelerate launch'.
     """
     print("Preparing to launch training with accelerate...")
@@ -56,15 +58,16 @@ def train(ctx, config: str):
 
     # Assemble the final command
     final_cmd = base_cmd + accelerate_args + script_cmd
-    
+
     print(f"Executing command: {' '.join(final_cmd)}")
-    
+
     try:
         # Use subprocess to run accelerate launch
         subprocess.run(final_cmd, check=True)
     except subprocess.CalledProcessError as e:
         print(f"Training failed: {e}", file=sys.stderr)
         sys.exit(1)
+
 
 @cli.command()
 @click.argument("config", type=click.Path(exists=True))
@@ -74,18 +77,21 @@ def preprocess(config: str):
     from krill.preprocess import do_preprocess
     do_preprocess(config)
 
+
 @cli.command()
 @click.argument("config", type=click.Path(exists=True))
-def peekdata(config: str):
+def inspect_dataset(config: str):
     """Peek into the dataset after preprocessing."""
 
-    from krill.peekdata import do_peekdata
-    do_peekdata(config)
+    from krill.inspect_dataset import do_inspect_pretrain_dataset
+    do_inspect_pretrain_dataset(config)
+
 
 @cli.command()
 def echo():
     """Echo the command line arguments. (For testing purposes.)"""
     print("Command line arguments:", sys.argv[1:])
+
 
 def main():
     cli()
