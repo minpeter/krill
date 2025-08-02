@@ -10,6 +10,7 @@ ParamsT: TypeAlias = Union[
 
 # This code snippet is a modified version adapted from the following GitHub repository:
 # https://github.com/KellerJordan/Muon/blob/master/muon.py
+# https://github.com/MoonshotAI/Moonlight/blob/master/examples/toy_train.py
 
 
 @torch.compile
