@@ -1,6 +1,9 @@
 [build-system]
-requires = ["setuptools>=61.0", "wheel"]
+requires = ["setuptools>=61.0", "wheel", "torch>=2.7.1"]
 build-backend = "setuptools.build_meta"
+
+[tool.uv]
+no-build-isolation-package = ['flash-attn', 'setuptools']
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -35,9 +38,6 @@ dependencies = [
 [project.scripts]
 krill = "krill.main:main"
 kr = "krill.main:main"
-
-[tool.uv]
-no-build-isolation-package = ['flash-attn', 'setuptools']
 
 [tool.uv.sources]
 torch = [{ index = "pytorch-cu128" }]
