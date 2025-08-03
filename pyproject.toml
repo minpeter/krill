@@ -40,15 +40,10 @@ krill = "krill.main:main"
 kr = "krill.main:main"
 
 [tool.uv.sources]
-torch = [{ index = "pytorch-cu128" }, { index = "pytorch-cpu" }]
+torch = [{ index = "pytorch-cu128" }]
 muon-optimizer = { git = "https://github.com/KellerJordan/Muon" }
 
 [[tool.uv.index]]
 name = "pytorch-cu128"
 url = "https://download.pytorch.org/whl/cu128"
-explicit = true
-
-[[tool.uv.index]]
-name = "pytorch-cpu"
-url = "https://download.pytorch.org/whl/cpu"
 explicit = true
