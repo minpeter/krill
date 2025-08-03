@@ -200,32 +200,3 @@ class Muon(torch.optim.Optimizer):
                 p.data.add_(g, alpha=-lr / scale)
 
         return loss
-
-
-def get_optimizer(optimizer_name, model, lr=1e-3, wd=0.1):
-    if optimizer_name == "adamw":
-        return torch.optim.AdamW(
-            model.parameters(), lr=lr, weight_decay=wd, betas=(0.9, 0.95)
-        )
-    elif optimizer_name == "muon":
-        muon_params = [
-            p
-            for name, p in model.named_parameters()
-            if p.ndim >= 2 and "embed_tokens" not in name and "lm_head" not in name
-        ]
-        adamw_params = [
-            p
-            for name, p in model.named_parameters()
-            if not (
-                p.ndim >= 2 and "embed_tokens" not in name and "lm_head" not in name
-            )
-        ]
-
-        return Muon(
-            lr=lr,
-            wd=wd,
-            muon_params=muon_params,
-            adamw_params=adamw_params,
-        )
-    else:
-        assert 0, "optimizer not supported"
