@@ -2,13 +2,14 @@ import click
 import subprocess
 import sys
 import os
+from krill import DEVICE_TYPE, get_statistics
 
 
 @click.group()
 def cli():
     """A CLI tool for krill, inspired by axolotl and unsloth."""
 
-    pass
+    print(get_statistics())
 
 
 @cli.command(context_settings={"ignore_unknown_options": True, "allow_extra_args": True})
@@ -20,6 +21,11 @@ def train(ctx, config: str):
 
     Any extra arguments (e.g., --num_processes=2) are passed to 'accelerate launch'.
     """
+    # Restrict training to CUDA-enabled GPUs
+    if DEVICE_TYPE != "cuda":
+        print(
+            "Error: Training is \033[1;41;97monly supported on CUDA-enabled\033[0m GPUs. Current device: CPU.", file=sys.stderr)
+        sys.exit(1)
     print("Preparing to launch training with accelerate...")
     # Main command: accelerate launch
     base_cmd = ["accelerate", "launch"]

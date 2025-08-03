@@ -3,6 +3,7 @@ from platform import system as platform_system
 from transformers.utils.import_utils import _is_package_available
 from transformers import __version__ as transformers_version
 from triton import __version__ as triton_version
+import os
 
 __version__ = "2025.8.2"
 
@@ -34,23 +35,27 @@ except Exception:
     pass
 
 
-if DEVICE_TYPE == "cuda":
-    gpu_stats = torch.cuda.get_device_properties(0)
-    gpu_version = torch.version.cuda
-    gpu_stats_snippet = f"CUDA: {gpu_stats.major}.{gpu_stats.minor}. CUDA Toolkit: {gpu_version}."
-    max_memory = round(gpu_stats.total_memory / 1024 / 1024 / 1024, 3)
-    gpu_name = gpu_stats.name
-else:
-    gpu_stats = torch.device("cpu")
-    gpu_stats_snippet = "No GPU detected. Running on CPU."
-    max_memory = "N/A"
-    gpu_name = "CPU"
+def get_statistics() -> str:
+    """Return environment statistics string for Krill."""
+    if DEVICE_TYPE == "cuda":
+        gpu_stats = torch.cuda.get_device_properties(0)
+        gpu_version = torch.version.cuda
+        gpu_stats_snippet = f"CUDA: {gpu_stats.major}.{gpu_stats.minor}. CUDA Toolkit: {gpu_version}."
+        max_mem = round(gpu_stats.total_memory / 1024 / 1024 / 1024, 3)
+        device_name = gpu_stats.name
+        extra = ""
+    else:
+        cpu_count = os.cpu_count() or "N/A"
+        gpu_stats_snippet = "No GPU detected. Running on CPU."
+        max_mem = "N/A"
+        device_name = "CPU"
+        extra = f" CPU cores: {cpu_count}."
 
-statistics = \
-    f"  /¯¯¯¯{chr(92)}   🦐 Krill {__version__}: A minimal pretraining trainer for LLMs — from scratch.\n"\
-    f" ( #|{chr(92)}_ü|  {gpu_name}. \033[1;43;30mNum GPUs = {DEVICE_COUNT}.\033[0m Max memory: {max_memory} GB. Platform: {PLATFORM_SYSTEM}.\n"\
-    f" ( #{chr(92)}  ƒƒ  Torch: {torch.__version__}. {gpu_stats_snippet} Triton: {triton_version}\n"\
-    f"  {chr(92)} #{chr(92)}     Transformers: {transformers_version}. Bfloat16 = {SUPPORTS_BFLOAT16}. FA2 = {HAS_FLASH_ATTENTION}\n"\
-    f'  /|||{chr(92)}    Source code: https://github.com/minpeter/krill\n'
-
-print(statistics)
+    stats = (
+        f"  /¯¯¯¯{chr(92)}   🦐 Krill {__version__}: A minimal pretraining trainer for LLMs — from scratch.\n"
+        f" ( #|{chr(92)}_ü|  {device_name}. Num GPUs = {DEVICE_COUNT}. Max memory: {max_mem} GB. Platform: {PLATFORM_SYSTEM}.{extra}\n"
+        f" ( #{chr(92)}  ƒƒ  Torch: {torch.__version__}. {gpu_stats_snippet} Triton: {triton_version}\n"
+        f"  {chr(92)} #{chr(92)}     Transformers: {transformers_version}. Bfloat16 = {SUPPORTS_BFLOAT16}. FA2 = {HAS_FLASH_ATTENTION}\n"
+        f"  /|||{chr(92)}    Source code: https://github.com/minpeter/krill\n"
+    )
+    return stats
