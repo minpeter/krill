@@ -28,16 +28,17 @@ dependencies = [
     "wandb>=0.21.0",
     "PyYAML>=5.4.1",
     "pydantic>=1.10.0",
-]
-
-[project.optional-dependencies]
-train = [
+    "muon-optimizer",
+    "pytorch-optimizer>=3.7.0",
     "accelerate>=1.9.0",
     "triton>=3.3.1",
     "liger-kernel>=0.6.1",
+]
+
+[project.optional-dependencies]
+flash-attn = [
     "flash-attn>=2.8.2",
-    "muon-optimizer",
-    "pytorch-optimizer>=3.7.0",
+    "torch>=2.7.1",
 ]
 
 [project.scripts]
@@ -46,3 +47,18 @@ kr = "krill.main:main"
 
 [tool.uv.sources]
 muon-optimizer = { git = "https://github.com/KellerJordan/Muon" }
+torch = [
+  { index = "pytorch-cpu" },
+  { index = "pytorch-cu128", extra = "flash-attn" },
+]
+
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
