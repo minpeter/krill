@@ -3,12 +3,14 @@ import subprocess
 import sys
 import os
 from krill import DEVICE_TYPE, get_statistics
+from krill.utils import patch_optimized_env
 
 
 @click.group()
 def cli():
     """A CLI tool for krill, inspired by axolotl and unsloth."""
 
+    patch_optimized_env()
     print(get_statistics())
 
 

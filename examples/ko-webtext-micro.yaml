@@ -9,12 +9,12 @@ dataset_prepared_min_length: 150
 
 datasets:
   - path: HAERAE-HUB/KOREAN-WEBTEXT
-    split: train
+    split: train[:10_000]
     text_column: text
 
 # krill train
-hub_model_id: minpeter/webtext-8k-micro
-output_dir: ./artifacts/models/webtext-8k-micro
+hub_model_id: minpeter/webtext-8k-micro-250801
+output_dir: ./artifacts/models/webtext-8k-micro-250801
 
 num_epochs: 1
 learning_rate: 1e-3
