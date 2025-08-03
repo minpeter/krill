@@ -54,6 +54,13 @@ def get_optimizer(optimizer_name, model, lr=1e-3, wd=0.1, muon_implementation="m
                 adamw_params=non_muon_params, adamw_lr=lr, adamw_wd=wd
             )
         else:
+            # TODO: add megatron muon implementation
+            # https://github.com/NVIDIA/Megatron-LM/pull/1428
+
+            # TODO: add pytorch muon implementation
+            # https://github.com/pytorch/pytorch/pull/159465
+
+            # TODO: add AdaMuon optimizer
             assert 0, f"Unknown muon implementation: {muon_implementation}. Supported: ['moonlight', 'kellerjordan', 'pytorch_optimizer']"
 
         return optimizer
