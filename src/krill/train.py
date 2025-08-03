@@ -16,8 +16,8 @@ from transformers import (
 )
 
 from krill.utils.optimizer import get_optimizer
-
 from krill.utils.config import load_config
+from krill import HAS_FLASH_ATTENTION, SUPPORTS_BFLOAT16
 
 
 def do_train(config_path: str):
@@ -53,7 +53,8 @@ def do_train(config_path: str):
     cfg.bos_token_id = tokenizer.eos_token_id
     cfg.eos_token_id = tokenizer.eos_token_id
 
-    cfg._attn_implementation = "flash_attention_2"
+    if HAS_FLASH_ATTENTION:
+        cfg._attn_implementation = "flash_attention_2"
 
     # Set rope_theta
     if cfg.max_position_embeddings >= 8192:
@@ -82,10 +83,12 @@ def do_train(config_path: str):
     ds = ds.train_test_split(test_size=0.001, shuffle=True)
 
     # Data collator
-    data_collator = DataCollatorWithFlattening(
-        return_flash_attn_kwargs=True, return_position_ids=True, return_seq_idx=True)
-    # data_collator = DataCollatorForLanguageModeling(
-    #     tokenizer=tokenizer, mlm=False)
+    if HAS_FLASH_ATTENTION:
+        data_collator = DataCollatorWithFlattening(
+            return_flash_attn_kwargs=True, return_position_ids=True, return_seq_idx=True)
+    else:
+        data_collator = DataCollatorForLanguageModeling(
+            tokenizer=tokenizer, mlm=False)
 
     # Training args
     training_args = TrainingArguments(
@@ -121,7 +124,7 @@ def do_train(config_path: str):
         weight_decay=0.0,
         lr_scheduler_type="cosine",  # warmup_stable_decay
         learning_rate=config.learning_rate,
-        bf16=True,
+        bf16=SUPPORTS_BFLOAT16,
 
 
 
