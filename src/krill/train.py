@@ -70,11 +70,21 @@ def do_train(config_path: str):
         "cuda" if torch.cuda.is_available() else "cpu"))
     # Optimizer
     if config.optimizer == "muon":
-        # optimizer = Muon(model.parameters(), lr=config.learning_rate,
-        #                  weight_decay=config.weight_decay)
+        # muon_params = [p for p in model.parameters() if p.ndim >= 2]
+        # non_muon_params = [p for p in model.parameters() if p.ndim < 2]
 
-        muon_params = [p for p in model.parameters() if p.ndim >= 2]
-        non_muon_params = [p for p in model.parameters() if p.ndim < 2]
+        muon_params = [
+            p
+            for name, p in model.named_parameters()
+            if p.ndim >= 2 and "embed_tokens" not in name and "lm_head" not in name
+        ]
+        non_muon_params = [
+            p
+            for name, p in model.named_parameters()
+            if not (
+                p.ndim >= 2 and "embed_tokens" not in name and "lm_head" not in name
+            )
+        ]
 
         # optimizer = Muon(muon_params, lr=config.learning_rate, weight_decay=config.weight_decay,
         #                  adamw_params=non_muon_params, adamw_lr=config.learning_rate, adamw_wd=config.weight_decay)
