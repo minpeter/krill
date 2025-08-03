@@ -2,8 +2,9 @@
 requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
-# [tool.uv]
-# no-build-isolation-package = ['flash-attn', 'setuptools']
+[tool.uv]
+no-build-isolation-package = ['flash-attn', 'setuptools']
+# default-groups = "all"
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -38,10 +39,6 @@ train = [
     "muon-optimizer",
     "pytorch-optimizer>=3.7.0",
 ]
-
-[tool.uv]
-default-groups = "all"
-
 
 [project.scripts]
 krill = "krill.main:main"

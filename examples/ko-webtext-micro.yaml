@@ -13,13 +13,14 @@ datasets:
     text_column: text
 
 # krill train
-hub_model_id: minpeter/webtext-8k-micro-250801
-output_dir: ./artifacts/models/webtext-8k-micro-250801
+hub_model_id: minpeter/webtext-8k-micro
+output_dir: ./artifacts/models/webtext-8k-micro
 
 num_epochs: 1
-learning_rate: 9e-4
+learning_rate: 1e-3
 weight_decay: 0.01
 optimizer: muon
+muon_implementation: moonlight
 
 micro_batch_size: 128
 gradient_accumulation_steps: 1
