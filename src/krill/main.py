@@ -123,5 +123,5 @@ def evaluate():
     print("IMPLEMENT ME: Evaluate command is not yet implemented.")
 
 
-def main():
+if __name__ == "__main__":
     cli()
