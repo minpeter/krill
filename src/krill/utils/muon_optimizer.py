@@ -47,42 +47,42 @@ def zeropower_via_newtonschulz5(G, steps):
 def muon_update(grad, momentum, beta, ns_steps, nesterov):
     """
     Perform Muon update logic for a single parameter.
-    
+
     Args:
         grad: Gradient tensor
         momentum: Momentum buffer
         beta: Momentum coefficient
         ns_steps: Number of Newton-Schulz steps
         nesterov: Whether to use Nesterov momentum
-    
+
     Returns:
         The orthogonalized update tensor
     """
     # Momentum buffer update
     momentum.lerp_(grad, 1 - beta)
-    
+
     # Compute update
     if nesterov:
         update = grad.lerp_(momentum, beta)
     else:
         update = momentum
-    
+
     # Handle conv filters: reshape 4D into 2D
     original_shape = update.shape
     if update.ndim == 4:
         update = update.view(update.size(0), -1)
-    
+
     # Orthogonalize with Newton-Schulz
     update = zeropower_via_newtonschulz5(update, steps=ns_steps)
-    
+
     # Scale update by max(1, d_model/d_ff)**0.5
     scale = max(1, update.size(-2) / update.size(-1)) ** 0.5
     update = update * scale
-    
+
     # Restore original shape if it was reshaped
     if len(original_shape) == 4:
         update = update.view(original_shape)
-    
+
     return update
 
 
@@ -148,7 +148,7 @@ class Muon(torch.optim.Optimizer):
             if not p.requires_grad:
                 continue
             # Determine if using Muon (2D and not embedding or LM head)
-            if p.ndim >= 2 and "embed" not in name and "lm_head" not in name:
+            if p.ndim >= 2 and "embed_tokens" not in name and "lm_head" not in name:
                 muon_params.append(p)
             else:
                 adamw_params.append(p)
@@ -200,7 +200,7 @@ class Muon(torch.optim.Optimizer):
                 if "momentum_buffer" not in state:
                     state["momentum_buffer"] = torch.zeros_like(g)
                 buf = state["momentum_buffer"]
-                
+
                 # compute update using new muon_update function
                 u = muon_update(g, buf, momentum, ns_steps, nesterov)
 
