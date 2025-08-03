@@ -44,46 +44,27 @@ def zeropower_via_newtonschulz5(G, steps):
     return X
 
 
-def muon_update(grad, momentum, beta, ns_steps, nesterov):
+def muon_update(grad, buf, momentum, nesterov, ns_steps):
     """
-    Perform Muon update logic for a single parameter.
-
-    Args:
-        grad: Gradient tensor
-        momentum: Momentum buffer
-        beta: Momentum coefficient
-        ns_steps: Number of Newton-Schulz steps
-        nesterov: Whether to use Nesterov momentum
-
-    Returns:
-        The orthogonalized update tensor
+    Compute the Muon update: apply momentum, orthogonalize via Newton-Schulz,
+    and scale by 0.2 * sqrt(max(rows, cols)).
     """
-    # Momentum buffer update
-    momentum.lerp_(grad, 1 - beta)
+    # original momentum buffer update
+    buf.mul_(momentum).add_(grad)
+    # nesterov
+    update = grad.add(buf, alpha=momentum) if nesterov else buf
 
-    # Compute update
-    if nesterov:
-        update = grad.lerp_(momentum, beta)
-    else:
-        update = momentum
-
-    # Handle conv filters: reshape 4D into 2D
-    original_shape = update.shape
-    if update.ndim == 4:
+    # collapse conv filters if needed
+    if update.ndim > 2:
         update = update.view(update.size(0), -1)
 
-    # Orthogonalize with Newton-Schulz
-    update = zeropower_via_newtonschulz5(update, steps=ns_steps)
+    # orthogonalize
+    u = zeropower_via_newtonschulz5(update, steps=ns_steps)
 
-    # Scale update by max(1, d_model/d_ff)**0.5
-    scale = max(1, update.size(-2) / update.size(-1)) ** 0.5
-    update = update * scale
-
-    # Restore original shape if it was reshaped
-    if len(original_shape) == 4:
-        update = update.view(original_shape)
-
-    return update
+    # scale update by 0.2 * sqrt(max(rows, cols))
+    A, B = grad.size(-2), grad.size(-1)
+    scale = 0.2 * math.sqrt(max(A, B))
+    return u.mul(scale)
 
 
 class Muon(torch.optim.Optimizer):
@@ -181,34 +162,28 @@ class Muon(torch.optim.Optimizer):
             ############################
 
             params = [p for p in group["params"] if self.state[p]["use_muon"]]
-            lr = group["lr"]
-            wd = group["wd"]
-            momentum = group["momentum"]
-            ns_steps = group["ns_steps"]
-            nesterov = group["nesterov"]
-
-            # generate weight updates in distributed fashion
             for p in params:
-                # sanity check
                 g = p.grad
                 if g is None:
                     continue
-                assert g is not None
-
-                # get or initialize momentum buffer
+                # stateful buffers
                 state = self.state[p]
                 if "momentum_buffer" not in state:
-                    state["momentum_buffer"] = torch.zeros_like(g)
+                    state["momentum_buffer"] = torch.zeros_like(p)
                 buf = state["momentum_buffer"]
 
-                # compute update using new muon_update function
-                u = muon_update(g, buf, momentum, ns_steps, nesterov)
-
+                # compute and apply Muon update
+                u = muon_update(
+                    grad=g,
+                    buf=buf,
+                    momentum=group["momentum"],
+                    nesterov=group["nesterov"],
+                    ns_steps=group["ns_steps"],
+                )
                 # apply weight decay
-                p.data.mul_(1 - lr * wd)
-
-                # apply update
-                p.data.add_(u, alpha=-lr)
+                p.data.mul_(1 - group["lr"] * group["wd"])
+                # subtract update (learning rate absorbed in muon_update scaling)
+                p.data.add_(u.reshape(p.shape), alpha=-group["lr"])
 
             ############################
             #       AdamW backup       #
