@@ -17,7 +17,7 @@ from transformers import (
 
 from krill.utils.optimizer import get_optimizer
 from krill.utils.config import load_config
-from krill import HAS_FLASH_ATTENTION
+from krill import HAS_FLASH_ATTENTION, SUPPORTS_BFLOAT16
 
 
 def do_train(config_path: str):
@@ -134,7 +134,7 @@ def do_train(config_path: str):
         weight_decay=0.0,
         lr_scheduler_type="cosine",  # warmup_stable_decay
         learning_rate=config.learning_rate,
-        bf16=True,
+        bf16=SUPPORTS_BFLOAT16,
 
 
 
