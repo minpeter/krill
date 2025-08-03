@@ -383,46 +383,46 @@ name = "krill"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "accelerate" },
     { name = "click" },
     { name = "datasets" },
     { name = "hf-transfer" },
+    { name = "muon-optimizer" },
     { name = "pydantic" },
+    { name = "pytorch-optimizer" },
     { name = "pyyaml" },
     { name = "torch" },
     { name = "transformers" },
+    { name = "triton" },
     { name = "trl" },
     { name = "wandb" },
 ]
 
 [package.optional-dependencies]
-train = [
-    { name = "accelerate" },
+cuda = [
     { name = "flash-attn" },
     { name = "liger-kernel" },
-    { name = "muon-optimizer" },
-    { name = "pytorch-optimizer" },
-    { name = "triton" },
 ]
 
 [package.metadata]
 requires-dist = [
-    { name = "accelerate", marker = "extra == 'train'", specifier = ">=1.9.0" },
+    { name = "accelerate", specifier = ">=1.9.0" },
     { name = "click", specifier = ">=8.2.1" },
     { name = "datasets", specifier = ">=4.0.0" },
-    { name = "flash-attn", marker = "extra == 'train'", specifier = ">=2.8.2" },
+    { name = "flash-attn", marker = "extra == 'cuda'", specifier = ">=2.8.2" },
     { name = "hf-transfer", specifier = ">=0.1.9" },
-    { name = "liger-kernel", marker = "extra == 'train'", specifier = ">=0.6.1" },
-    { name = "muon-optimizer", marker = "extra == 'train'", git = "https://github.com/KellerJordan/Muon" },
+    { name = "liger-kernel", marker = "extra == 'cuda'", specifier = ">=0.6.1" },
+    { name = "muon-optimizer", git = "https://github.com/KellerJordan/Muon" },
     { name = "pydantic", specifier = ">=1.10.0" },
-    { name = "pytorch-optimizer", marker = "extra == 'train'", specifier = ">=3.7.0" },
+    { name = "pytorch-optimizer", specifier = ">=3.7.0" },
     { name = "pyyaml", specifier = ">=5.4.1" },
     { name = "torch", specifier = ">=2.7.1" },
     { name = "transformers", specifier = ">=4.54.1" },
-    { name = "triton", marker = "extra == 'train'", specifier = ">=3.3.1" },
+    { name = "triton", specifier = ">=3.3.1" },
     { name = "trl", specifier = ">=0.20.0" },
     { name = "wandb", specifier = ">=0.21.0" },
 ]
-provides-extras = ["train"]
+provides-extras = ["cuda"]
 
 [[package]]
 name = "liger-kernel"

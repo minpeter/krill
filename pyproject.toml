@@ -4,7 +4,6 @@ build-backend = "setuptools.build_meta"
 
 [tool.uv]
 no-build-isolation-package = ['flash-attn', 'setuptools']
-# default-groups = "all"
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -38,26 +37,11 @@ dependencies = [
 cuda = [
     "flash-attn>=2.8.2",
     "liger-kernel>=0.6.1",
-    "torch>=2.7.1",
 ]
 
 [tool.uv.sources]
 muon-optimizer = { git = "https://github.com/KellerJordan/Muon" }
-torch = [
-  { index = "pytorch-cpu" },
-  { index = "pytorch-cu128", extra = "cuda" },
-]
 
 [project.scripts]
 krill = "krill.main:main"
 kr = "krill.main:main"
-
-[[tool.uv.index]]
-name = "pytorch-cpu"
-url = "https://download.pytorch.org/whl/cpu"
-explicit = true
-
-[[tool.uv.index]]
-name = "pytorch-cu128"
-url = "https://download.pytorch.org/whl/cu128"
-explicit = true
