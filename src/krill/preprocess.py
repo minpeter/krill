@@ -112,10 +112,3 @@ def do_preprocess(config: KrillConfig):
     print(
         f"🦐 Krill: Finished. Packed data saved to {config.dataset_prepared_path}"
     )
-
-    print("""
-To inspect the packed dataset, use:
-  krill inspect-dataset <config_file>
-To train a model with this dataset, use:
-  krill train <config_file>
-""")
