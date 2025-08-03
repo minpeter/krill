@@ -29,6 +29,7 @@ dependencies = [
     "wandb>=0.21.0",
     "PyYAML>=5.4.1",
     "pydantic>=1.10.0",
+    "muon-optimizer",
 ]
 
 [project.scripts]
@@ -37,6 +38,7 @@ kr = "krill.main:main"
 
 [tool.uv.sources]
 torch = [{ index = "pytorch-cu128" }]
+muon-optimizer = { git = "https://github.com/KellerJordan/Muon" }
 
 [[tool.uv.index]]
 name = "pytorch-cu128"

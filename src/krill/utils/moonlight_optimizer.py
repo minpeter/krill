@@ -1,18 +1,12 @@
+# Cloned from https://github.com/MoonshotAI/Moonlight repository
+
+
 import math
 import torch
-from typing import Any, Iterable, Union
-from typing_extensions import TypeAlias
 
-ParamsT: TypeAlias = Union[
-    Iterable[torch.Tensor], Iterable[dict[str, Any]
-                                     ], Iterable[tuple[str, torch.Tensor]]
-]
 
 # This code snippet is a modified version adapted from the following GitHub repository:
 # https://github.com/KellerJordan/Muon/blob/master/muon.py
-# https://github.com/MoonshotAI/Moonlight/blob/master/examples/toy_train.py
-
-
 @torch.compile
 def zeropower_via_newtonschulz5(G, steps):
     """
@@ -58,31 +52,35 @@ class Muon(torch.optim.Optimizer):
     - We believe it may not work well for finetuning pretrained models, but we haven't tested this.
 
     Arguments:
-      params: Iterable of (name, parameter) tuples to optimize.
-      lr: Base learning rate for both Muon and AdamW updates.
-      weight_decay: L2 regularization coefficient applied to all parameters.
-      momentum: Momentum factor for the Muon (SGD) update.
-      nesterov: If True, use Nesterov momentum in the Muon update.
-      ns_steps: Number of Newton–Schulz iterations for orthogonalizing each Muon update.
-      adamw_betas: Tuple (beta1, beta2) for the internal AdamW optimizer (default (0.9, 0.95)).
-      adamw_eps: Epsilon value for numerical stability in AdamW (default 1e-8).
+        muon_params: The parameters to be optimized by Muon.
+        lr: The learning rate. The updates will have spectral norm of `lr`. (0.02 is a good default)
+        momentum: The momentum used by the internal SGD. (0.95 is a good default)
+        nesterov: Whether to use Nesterov-style momentum in the internal SGD. (recommended)
+        ns_steps: The number of Newton-Schulz iterations to run. (6 is probably always enough)
+        adamw_params: The parameters to be optimized by AdamW. Any parameters in `muon_params` which are
+        {0, 1}-D or are detected as being the embed or lm_head will be optimized by AdamW as well.
+        adamw_lr: The learning rate for the internal AdamW.
+        adamw_betas: The betas for the internal AdamW.
+        adamw_eps: The epsilon for the internal AdamW.
+        adamw_wd: The weight decay for the internal AdamW.
     """
 
     def __init__(
         self,
-        params: ParamsT,
-        lr: Union[float, torch.Tensor] = 1e-3,
-        weight_decay: float = 1e-2,
-        momentum: float = 0.95,
-        nesterov: bool = True,
-        ns_steps: int = 5,
-        adamw_betas: tuple[float, float] = (0.9, 0.95),
-        adamw_eps: float = 1e-8,
-    ) -> None:
+        lr=1e-3,
+        wd=0.1,
+        muon_params=None,
+        momentum=0.95,
+        nesterov=True,
+        ns_steps=5,
+        adamw_params=None,
+        adamw_betas=(0.9, 0.95),
+        adamw_eps=1e-8,
+    ):
 
-        defaults: dict[str, Any] = dict(
+        defaults = dict(
             lr=lr,
-            wd=weight_decay,
+            wd=wd,
             momentum=momentum,
             nesterov=nesterov,
             ns_steps=ns_steps,
@@ -90,34 +88,17 @@ class Muon(torch.optim.Optimizer):
             adamw_eps=adamw_eps,
         )
 
-        # Split parameters into those for Muon (2D+) and those for AdamW, support named and unnamed params
-        muon_params: list[torch.Tensor] = []
-        adamw_params: list[torch.Tensor] = []
-        for item in params:
-            # Unpack named parameters if provided
-            if isinstance(item, tuple) and len(item) == 2 and isinstance(item[0], str) and isinstance(item[1], torch.Tensor):
-                name, p = item
-            # Handle plain parameter tensors
-            elif isinstance(item, torch.Tensor):
-                name, p = "", item
-            else:
-                # Skip unsupported entries
-                continue
-            if not p.requires_grad:
-                continue
-            # Determine if using Muon (2D and not embedding or LM head)
-            if p.ndim >= 2 and "embed_tokens" not in name and "lm_head" not in name:
-                muon_params.append(p)
-            else:
-                adamw_params.append(p)
-        all_params: list[torch.Tensor] = muon_params + adamw_params
-
-        super().__init__(all_params, defaults)
-
+        params = list(muon_params)
+        adamw_params = list(adamw_params) if adamw_params is not None else []
+        params.extend(adamw_params)
+        super().__init__(params, defaults)
+        # Sort parameters into those for which we will use Muon, and those for which we will not
         for p in muon_params:
+            # Use Muon for every parameter in muon_params which is >= 2D and doesn't look like an embedding or head layer
             assert p.ndim == 2, p.ndim
             self.state[p]["use_muon"] = True
         for p in adamw_params:
+            # Do not use Muon for parameters in adamw_params
             self.state[p]["use_muon"] = False
 
     def adjust_lr_for_muon(self, lr, param_shape):
@@ -152,7 +133,7 @@ class Muon(torch.optim.Optimizer):
             wd = group["wd"]
             momentum = group["momentum"]
 
-            # generate weight updates in distributed fashion
+            # generate weight updates
             for p in params:
                 # sanity check
                 g = p.grad
@@ -219,3 +200,32 @@ class Muon(torch.optim.Optimizer):
                 p.data.add_(g, alpha=-lr / scale)
 
         return loss
+
+
+def get_optimizer(optimizer_name, model, lr=1e-3, wd=0.1):
+    if optimizer_name == "adamw":
+        return torch.optim.AdamW(
+            model.parameters(), lr=lr, weight_decay=wd, betas=(0.9, 0.95)
+        )
+    elif optimizer_name == "muon":
+        muon_params = [
+            p
+            for name, p in model.named_parameters()
+            if p.ndim >= 2 and "embed_tokens" not in name and "lm_head" not in name
+        ]
+        adamw_params = [
+            p
+            for name, p in model.named_parameters()
+            if not (
+                p.ndim >= 2 and "embed_tokens" not in name and "lm_head" not in name
+            )
+        ]
+
+        return Muon(
+            lr=lr,
+            wd=wd,
+            muon_params=muon_params,
+            adamw_params=adamw_params,
+        )
+    else:
+        assert 0, "optimizer not supported"
