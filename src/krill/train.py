@@ -36,8 +36,18 @@ def do_train(config_path: str):
     tokenizer = AutoTokenizer.from_pretrained(config.hub_tokenizer_id)
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
+
     # Model config
     model_configs = {
+        "pico": LlamaConfig(
+            initializer_range=0.02,
+            hidden_size=16,
+            num_hidden_layers=2,
+            intermediate_size=64,
+            tie_word_embeddings=False,
+            num_attention_heads=4,
+            num_key_value_heads=4,
+        ),
         "micro": LlamaConfig(initializer_range=(1 / math.sqrt(256)), hidden_size=256, num_hidden_layers=12, intermediate_size=1024, tie_word_embeddings=True, num_attention_heads=4, num_key_value_heads=2),
         "small": LlamaConfig(initializer_range=(1 / math.sqrt(768)), hidden_size=768, num_hidden_layers=27, intermediate_size=1920, tie_word_embeddings=True, num_attention_heads=12, num_key_value_heads=4),
     }
@@ -138,7 +148,7 @@ def do_train(config_path: str):
         remove_unused_columns=False,
 
         # https://huggingface.co/docs/transformers/v4.53.3/en/trainer#optimizations
-        use_liger_kernel=True,
+        use_liger_kernel=torch.cuda.is_available(),
         # neftune_noise_alpha= 0.1,
 
         # torch_compile=True,

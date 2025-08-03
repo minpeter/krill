@@ -3,8 +3,8 @@ vocab_size: 32000
 hub_tokenizer_id: minpeter/webtext-tokenizer-32k
 
 # krill preprocess
-sequence_len: 8192
-dataset_prepared_path: ./artifacts/webtext-8k
+sequence_len: 1024
+dataset_prepared_path: ./artifacts/webtext-1k
 dataset_prepared_min_length: 150
 
 datasets:
@@ -13,8 +13,8 @@ datasets:
     text_column: text
 
 # krill train
-hub_model_id: minpeter/webtext-8k-micro-250801
-output_dir: ./artifacts/models/webtext-8k-micro-250801
+hub_model_id: minpeter/webtext-1k-pico
+output_dir: ./artifacts/models/webtext-1k-pico
 
 num_epochs: 1
 learning_rate: 1e-3
@@ -25,4 +25,4 @@ muon_implementation: moonlight
 micro_batch_size: 1
 gradient_accumulation_steps: 1
 
-model_config_name: micro
+model_config_name: pico

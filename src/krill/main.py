@@ -2,7 +2,7 @@ import click
 import subprocess
 import sys
 import os
-from krill import DEVICE_TYPE, get_statistics
+from krill import HAS_FLASH_ATTENTION, get_statistics
 from krill.utils import patch_optimized_env
 
 
@@ -24,10 +24,11 @@ def train(ctx, config: str):
     Any extra arguments (e.g., --num_processes=2) are passed to 'accelerate launch'.
     """
     # Restrict training to CUDA-enabled GPUs
-    if DEVICE_TYPE != "cuda":
+
+    if not HAS_FLASH_ATTENTION:
         print(
-            "Error: Training is \033[1;41;97monly supported on CUDA-enabled\033[0m GPUs. Current device: CPU.", file=sys.stderr)
-        sys.exit(1)
+            "\033[1;41;97mWarning: For CUDA-enabled environments,\033[0m please run: pip install 'krill[cuda] @ git+https://github.com/minpeter/krill.git'", file=sys.stderr)
+
     print("Preparing to launch training with accelerate...")
     # Main command: accelerate launch
     base_cmd = ["accelerate", "launch"]
