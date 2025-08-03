@@ -1,6 +1,6 @@
 import math
 import torch
-from typing import Any, Iterable, Union
+from typing import Any, Iterable, Union, Tuple
 from typing_extensions import TypeAlias
 
 ParamsT: TypeAlias = Union[
@@ -11,6 +11,73 @@ ParamsT: TypeAlias = Union[
 # This code snippet is a modified version adapted from the following GitHub repository:
 # https://github.com/KellerJordan/Muon/blob/master/muon.py
 # https://github.com/MoonshotAI/Moonlight/blob/master/examples/toy_train.py
+
+
+class NoComplexParameterError(Exception):
+    """Raised when the dtype of the parameter is complex.
+
+    :param optimizer_name: str. optimizer name.
+    :param note: str. special conditions to note (default '').
+    """
+
+    def __init__(self, optimizer_name: str, note: str = ''):
+        self.note: str = ' ' if not note else f' w/ {note} '
+        self.message: str = f'{optimizer_name}{self.note}does not support complex parameter.'
+        super().__init__(self.message)
+
+
+class NoSparseGradientError(Exception):
+    """Raised when the gradient is sparse gradient.
+
+    :param optimizer_name: str. optimizer name.
+    :param note: str. special conditions to note (default '').
+    """
+
+    def __init__(self, optimizer_name: str, note: str = ''):
+        self.note: str = ' ' if not note else f' w/ {note} '
+        self.message: str = f'{optimizer_name}{self.note}does not support sparse gradient.'
+        super().__init__(self.message)
+
+
+def zero_power_via_newton_schulz_5(
+    g: torch.Tensor, 
+    num_steps: int = 5, 
+    eps: float = 1e-7, 
+    weights: Tuple[float, float, float] = (3.4445, -4.7750, 2.0315)
+) -> torch.Tensor:
+    """Compute the zeroth power / orthogonalization of G.
+
+    Newton-Schulz iteration to compute the zeroth power / orthogonalization of G. We opt to use a quintic iteration
+    whose coefficients are selected to maximize the slope at zero. For the purpose of minimizing steps, it turns out
+    to be empirically effective to keep increasing the slope at zero even beyond the point where the iteration no
+    longer converges all the way to one everywhere on the interval. This iteration therefore does not produce UV^T but
+    rather something like US'V^T where S' is diagonal with S_{ii}' ~ Uniform(0.5, 1.5), which turns out not to hurt
+    model performance at all relative to UV^T, where USV^T = G is the SVD.
+
+    :param g: torch.Tensor. matrix.
+    :param num_steps: int. number of iterations.
+    :param eps: float. add this times I to G, to make is positive definite. For scaling, we multiply it by the largest
+        eigenvalue of G.
+    :param weights: Tuple[float, float, float]. weights for the quintic iteration (a, b, c).
+    """
+    if len(g.shape) != 2:
+        raise ValueError('shape of g must be 2-dimensional')
+
+    x = g.bfloat16()
+    x.div_(x.norm().add_(eps))
+
+    if g.size(0) > g.size(1):
+        x = x.T
+
+    for _ in range(num_steps):
+        a = x @ x.T
+        b = weights[1] * a + weights[2] * a @ a
+        x = weights[0] * x + b @ x
+
+    if g.size(0) > g.size(1):
+        x = x.T
+
+    return x
 
 
 @torch.compile
