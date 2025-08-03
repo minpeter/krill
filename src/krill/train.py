@@ -15,8 +15,8 @@ from transformers import (
     DataCollatorForLanguageModeling
 )
 
-# from muon import SingleDeviceMuonWithAuxAdam
-# from pytorch_optimizer import Muon
+from muon import SingleDeviceMuonWithAuxAdam
+from pytorch_optimizer import Muon as PytorchOptimizerMuon
 from krill.utils.moonlight_optimizer import Muon as MoonlightMuon
 
 from krill.utils.config import load_config
@@ -69,7 +69,10 @@ def do_train(config_path: str):
     model.to(torch.bfloat16).to(torch.device(
         "cuda" if torch.cuda.is_available() else "cpu"))
     # Optimizer
-    if config.optimizer == "muon":
+    if config.optimizer == "adamw":
+        optimizer = torch.optim.AdamW(
+            model.parameters(), lr=config.learning_rate, weight_decay=config.weight_decay)
+    elif config.optimizer == "muon":
         # muon_params = [p for p in model.parameters() if p.ndim >= 2]
         # non_muon_params = [p for p in model.parameters() if p.ndim < 2]
 
@@ -86,26 +89,40 @@ def do_train(config_path: str):
             )
         ]
 
-        # optimizer = Muon(muon_params, lr=config.learning_rate, weight_decay=config.weight_decay,
-        #                  adamw_params=non_muon_params, adamw_lr=config.learning_rate, adamw_wd=config.weight_decay)
+        if config.muon_implementation == "moonlight":
+            # https://github.com/MoonshotAI/Moonlight
+            optimizer = MoonlightMuon(
+                lr=config.learning_rate,
+                wd=config.weight_decay,
+                muon_params=muon_params,
+                adamw_params=non_muon_params,
+                adamw_betas=(0.9, 0.95),
+            )
+        elif config.muon_implementation == "kellerjordan":
+            # https://github.com/KellerJordan/Muon
+            # https://kellerjordan.github.io/posts/muon/
+            param_groups = [
+                dict(params=muon_params, use_muon=True,
+                     lr=config.learning_rate, weight_decay=config.weight_decay),
+                dict(params=non_muon_params, use_muon=False,
+                     lr=config.learning_rate, betas=(0.9, 0.95), weight_decay=config.weight_decay),
+            ]
+            optimizer = SingleDeviceMuonWithAuxAdam(param_groups)
+        elif config.muon_implementation == "pytorch_optimizer":
+            # https://github.com/kozistr/pytorch_optimizer/blob/main/pytorch_optimizer/optimizer/muon.py
+            optimizer = PytorchOptimizerMuon(muon_params, lr=config.learning_rate, weight_decay=config.weight_decay,
+                                             adamw_params=non_muon_params, adamw_lr=config.learning_rate, adamw_wd=config.weight_decay)
+        else:
+            raise ValueError(
+                f"Unknown muon implementation: {config.muon_implementation}. "
+                "Supported: ['moonlight', 'kellerjordan', 'pytorch_optimizer']"
+            )
 
-        # param_groups = [
-        #     dict(params=muon_params, use_muon=True, lr=config.learning_rate, weight_decay=config.weight_decay),
-        #     dict(params=non_muon_params, use_muon=False,
-        #          lr=config.learning_rate, betas=(0.9, 0.95), weight_decay=config.weight_decay),
-        # ]
-        # optimizer = SingleDeviceMuonWithAuxAdam(param_groups)
-
-        optimizer = MoonlightMuon(
-            lr=config.learning_rate,
-            wd=config.weight_decay,
-            muon_params=muon_params,
-            adamw_params=non_muon_params,
-            adamw_betas=(0.9, 0.95),
-        )
     else:
-        optimizer = torch.optim.AdamW(
-            model.parameters(), lr=config.learning_rate, weight_decay=config.weight_decay)
+        raise ValueError(
+            f"Unknown optimizer: {config.optimizer}. Supported: ['adamw', 'muon']"
+        )
+
     # Dataset
     logger.info(f"Loading dataset from {config.dataset_prepared_path}")
     ds = load_from_disk(config.dataset_prepared_path)

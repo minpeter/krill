@@ -25,6 +25,8 @@ class KrillConfig(BaseModel):
     learning_rate: float = Field(default=3e-4)
     weight_decay: float = Field(default=0.01)
     optimizer: str = Field(default="muon")
+    muon_implementation: str = Field(default="moonlight")
+
     model_config_name: str = Field(default="small")
     gradient_accumulation_steps: int = Field(default=1)
     # The number of samples to include in each batch. This is the number of samples sent to
