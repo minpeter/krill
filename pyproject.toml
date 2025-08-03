@@ -24,7 +24,6 @@ dependencies = [
     "hf-transfer>=0.1.9",
     "torch>=2.7.1",
     "transformers>=4.54.1",
-    "triton>=3.3.1",
     "trl>=0.20.0",
     "wandb>=0.21.0",
     "PyYAML>=5.4.1",
@@ -33,6 +32,7 @@ dependencies = [
 
 [project.optional-dependencies]
 train = [
+    "triton>=3.3.1",
     "liger-kernel>=0.6.1",
     "flash-attn>=2.8.2",
     "muon-optimizer",
