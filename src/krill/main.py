@@ -3,38 +3,12 @@ import subprocess
 import sys
 import os
 
-from transformers import __version__ as transformers_version
-from triton import __version__ as triton_version
-
-import torch
-
-from krill import DEVICE_TYPE, DEVICE_COUNT, SUPPORTS_BFLOAT16, HAS_FLASH_ATTENTION, PLATFORM_SYSTEM
-
-
-__version__ = "2025.8.2"
-
 
 @click.group()
 def cli():
     """A CLI tool for krill, inspired by axolotl and unsloth."""
 
-    if DEVICE_TYPE == "cuda":
-        gpu_stats = torch.cuda.get_device_properties(0)
-        gpu_version = torch.version.cuda
-        gpu_stats_snippet = f"CUDA: {gpu_stats.major}.{gpu_stats.minor}. CUDA Toolkit: {gpu_version}."
-    else:
-        raise ValueError(f"🦐 Krill: Unsupported device type: {DEVICE_TYPE}")
-
-    max_memory = round(gpu_stats.total_memory / 1024 / 1024 / 1024, 3)
-
-    statistics = \
-        f"  /¯¯¯¯{chr(92)}   🦐 Krill {__version__}: A minimal pretraining trainer for LLMs — from scratch.\n"\
-        f" ( #|{chr(92)}_ü|  {gpu_stats.name}. \033[1;43;30mNum GPUs = {DEVICE_COUNT}.\033[0m Max memory: {max_memory} GB. Platform: {PLATFORM_SYSTEM}.\n"\
-        f" ( #{chr(92)}  ƒƒ  Torch: {torch.__version__}. {gpu_stats_snippet} Triton: {triton_version}\n"\
-        f"  {chr(92)} #{chr(92)}     Transformers: {transformers_version}. Bfloat16 = {SUPPORTS_BFLOAT16}. FA2 = {HAS_FLASH_ATTENTION}\n"\
-        f'  /|||{chr(92)}    Source code: https://github.com/minpeter/krill\n'
-
-    print(statistics)
+    pass
 
 
 @cli.command(context_settings={"ignore_unknown_options": True, "allow_extra_args": True})
