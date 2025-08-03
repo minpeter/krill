@@ -69,7 +69,7 @@ def do_train(config_path: str):
 
     # Optimizer
     optimizer = get_optimizer(
-        config.optimizer_name,
+        config.optimizer,
         model,
         lr=config.learning_rate,
         wd=config.weight_decay,
