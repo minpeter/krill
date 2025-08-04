@@ -38,6 +38,9 @@ cuda = [
     "flash-attn>=2.8.2",
     "liger-kernel>=0.6.1",
 ]
+datatrove = [
+    "datatrove>=0.2.0",
+]
 
 [tool.uv.sources]
 muon-optimizer = { git = "https://github.com/KellerJordan/Muon" }

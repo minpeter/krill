@@ -1,0 +1,53 @@
+# Example Krill Configuration with Datatrove Integration
+# This configuration demonstrates how to use datatrove for enhanced preprocessing
+
+sequence_len: 2048
+vocab_size: 32000
+hub_tokenizer_id: "microsoft/DialoGPT-medium"
+dataset_prepared_path: "./prepared_data"
+dataset_prepared_min_length: 150
+
+# Your datasets to preprocess
+datasets:
+  - path: "wikitext"
+    split: "train"
+    text_column: "text"
+  # Add more datasets as needed
+  # - path: "your/other/dataset"
+  #   split: "train"
+  #   text_column: "content"
+
+hub_model_id: "your-model-id"
+output_dir: "./output"
+num_epochs: 1
+learning_rate: 3e-4
+weight_decay: 0.01
+optimizer: "muon"
+muon_implementation: "moonlight"
+model_config_name: "small"
+gradient_accumulation_steps: 1
+micro_batch_size: 1
+
+# Datatrove configuration for enhanced preprocessing
+datatrove:
+  # Enable datatrove preprocessing (requires: pip install 'krill[datatrove]')
+  enabled: true
+  
+  # Deduplication algorithm: 'minhash' (fast, approximate) or 'exact' (slower, perfect)
+  deduplication_algorithm: "minhash"
+  
+  # Quality filtering settings
+  quality_filters:
+    min_length: 100          # Minimum text length in characters
+    max_length: 100000       # Maximum text length in characters (optional)
+    use_trafilatura: false   # Use advanced text extraction (slower but higher quality)
+    collect_stats: true      # Collect word/character statistics
+    cleanup_temp: true       # Clean up temporary files after processing
+  
+  # Processing settings
+  distributed: false         # Enable distributed processing (advanced)
+  streaming: true           # Use streaming for memory efficiency
+  num_workers: 4            # Number of parallel workers (adjust based on CPU cores)
+  
+  # MinHash deduplication threshold (0.0-1.0, lower = more aggressive deduplication)
+  minhash_threshold: 0.8

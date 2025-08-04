@@ -3,13 +3,27 @@ Configuration loader for Krill project.
 """
 import yaml
 from pydantic import BaseModel, Field
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 
 
 class DatasetConfig(BaseModel):
     path: str
     split: str = Field(default="train")
     text_column: str = Field(default="text")
+
+
+class DatatroveConfig(BaseModel):
+    """Configuration for datatrove integration."""
+    enabled: bool = Field(default=False, description="Enable datatrove preprocessing")
+    deduplication_algorithm: str = Field(default="minhash", description="Deduplication algorithm: 'minhash' or 'exact'")
+    quality_filters: Dict[str, Any] = Field(default_factory=lambda: {"min_length": 100}, description="Quality filter settings")
+    distributed: bool = Field(default=False, description="Enable distributed processing")
+    streaming: bool = Field(default=True, description="Enable streaming processing")
+    num_workers: int = Field(default=1, description="Number of worker processes")
+    minhash_threshold: float = Field(default=0.8, description="MinHash similarity threshold for deduplication")
+    
+    class Config:
+        extra = "allow"  # Allow additional datatrove-specific settings
 
 
 class KrillConfig(BaseModel):
@@ -32,6 +46,9 @@ class KrillConfig(BaseModel):
     # The number of samples to include in each batch. This is the number of samples sent to
     # each GPU. Batch size per gpu = micro_batch_size * gradient_accumulation_steps
     micro_batch_size: int | None = Field(default=1)
+    
+    # Datatrove integration
+    datatrove: Optional[DatatroveConfig] = Field(default_factory=lambda: DatatroveConfig(), description="Datatrove preprocessing configuration")
 
 
 def load_config(path: str) -> KrillConfig:

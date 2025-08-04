@@ -14,9 +14,21 @@ def do_preprocess(config: KrillConfig):
     # Prepare output directory
     os.makedirs(config.dataset_prepared_path, exist_ok=True)
 
-    # Load and prepare raw datasets
-    from krill.utils.dataset_utils import load_and_prepare_raw_datasets
-    raw_dataset = load_and_prepare_raw_datasets(config.datasets)
+    # Determine preprocessing method
+    use_datatrove = (
+        config.datatrove is not None and 
+        config.datatrove.enabled and
+        _is_datatrove_available()
+    )
+    
+    if use_datatrove:
+        print("📊 Using datatrove preprocessing pipeline")
+        raw_dataset = _preprocess_with_datatrove(config)
+    else:
+        if config.datatrove and config.datatrove.enabled:
+            print("⚠️  Datatrove requested but not available. Install with: pip install 'krill[datatrove]'")
+        print("🔄 Using current preprocessing pipeline")
+        raw_dataset = _preprocess_with_current_method(config)
 
     # Load tokenizer
     tokenizer = AutoTokenizer.from_pretrained(config.hub_tokenizer_id)
@@ -112,3 +124,35 @@ def do_preprocess(config: KrillConfig):
     print(
         f"🦐 Krill: Finished. Packed data saved to {config.dataset_prepared_path}"
     )
+
+
+def _is_datatrove_available() -> bool:
+    """Check if datatrove is available."""
+    try:
+        from krill.utils.datatrove_utils import is_datatrove_available
+        return is_datatrove_available()
+    except ImportError:
+        return False
+
+
+def _preprocess_with_datatrove(config: KrillConfig):
+    """Preprocess using datatrove pipeline."""
+    from krill.utils.datatrove_utils import DatatrovePreprocessor
+    
+    # Initialize preprocessor
+    preprocessor = DatatrovePreprocessor(config.datatrove)
+    
+    # Process datasets
+    processed_dataset = preprocessor.process_datasets(
+        config.datasets,
+        os.path.join(config.dataset_prepared_path, "datatrove_output")
+    )
+    
+    print(f"📊 Datatrove processed {len(processed_dataset)} documents")
+    return processed_dataset
+
+
+def _preprocess_with_current_method(config: KrillConfig):
+    """Preprocess using the current implementation."""
+    from krill.utils.dataset_utils import load_and_prepare_raw_datasets
+    return load_and_prepare_raw_datasets(config.datasets)
