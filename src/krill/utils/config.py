@@ -43,6 +43,9 @@ class KrillConfig(BaseModel):
     streaming: bool = Field(default=True, description="Enable streaming processing")
     num_workers: int = Field(default=1, description="Number of worker processes")
     minhash_threshold: float = Field(default=0.8, description="MinHash similarity threshold for deduplication")
+    
+    # Optional HuggingFace dataset upload
+    dataset_prepared_hf_id: Optional[str] = Field(default=None, description="HuggingFace dataset ID for uploading processed dataset (e.g., 'username/dataset-name')")
 
 
 def load_config(path: str) -> KrillConfig:

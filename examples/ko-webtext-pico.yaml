@@ -18,6 +18,9 @@ streaming: true
 num_workers: 2
 minhash_threshold: 0.8
 
+# Optional: Upload processed dataset to HuggingFace Hub
+# dataset_prepared_hf_id: minpeter/ko-webtext-processed
+
 datasets:
   - path: HAERAE-HUB/KOREAN-WEBTEXT
     split: train[:10_000]

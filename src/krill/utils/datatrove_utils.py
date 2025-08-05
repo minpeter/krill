@@ -11,7 +11,7 @@ from krill.utils.config import DatasetConfig
 # Import datatrove components
 from datatrove.executor import LocalPipelineExecutor
 from datatrove.pipeline.readers import HuggingFaceDatasetReader
-from datatrove.pipeline.writers import JsonlWriter
+from datatrove.pipeline.writers import JsonlWriter, HuggingFaceDatasetWriter
 from datatrove.pipeline.filters.base_filter import BaseFilter
 from datatrove.pipeline.extractors import Trafilatura
 from datatrove.data import Document
@@ -30,6 +30,95 @@ class DatatrovePreprocessor:
             'filtered_duplicates': 0,
             'final_count': 0
         }
+
+    def _is_local_path(self, path: str) -> bool:
+        """
+        Determine if a path is a local file path or a HuggingFace dataset ID.
+        
+        Returns True for local paths, False for HuggingFace dataset IDs.
+        """
+        if not path:
+            return True
+        
+        # First check if it looks like a HuggingFace dataset ID (username/dataset-name)
+        if '/' in path and len(path.split('/')) == 2:
+            parts = path.split('/')
+            # If both parts are valid identifiers and no other path indicators, it's likely HF ID
+            if (parts[0] and parts[1] and  # Both parts must be non-empty
+                self._is_valid_identifier(parts[0]) and 
+                self._is_valid_identifier(parts[1])):
+                # Check for local path indicators that would override HF detection
+                local_override_indicators = [
+                    './',  # Relative paths
+                    '../',  # Parent directory
+                    '~/',  # Home directory
+                    '\\',  # Windows backslash
+                ]
+                
+                for indicator in local_override_indicators:
+                    if indicator in path:
+                        return True
+                
+                # Check if path exists locally (strong indicator)
+                try:
+                    import os
+                    if os.path.exists(path) or os.path.exists(os.path.dirname(path)):
+                        return True
+                except Exception:
+                    pass
+                
+                # Additional check: if it contains common local path patterns, treat as local
+                # Only check if the entire component matches, not partial matches
+                local_path_patterns = [
+                    'artifacts',  # Common build directory
+                    'output',     # Common output directory
+                    'tmp',        # Temporary directory
+                    'build',      # Build directory
+                ]
+                
+                path_parts = path.lower().split('/')
+                for pattern in local_path_patterns:
+                    if pattern in path_parts:
+                        return True
+                
+                # If no local indicators found, treat as HF dataset ID
+                return False
+            
+        # Check for obvious local path indicators
+        local_indicators = [
+            './',  # Relative paths
+            '../',  # Parent directory
+            '~/',  # Home directory
+            '\\',  # Windows backslash
+        ]
+        
+        for indicator in local_indicators:
+            if indicator in path:
+                return True
+        
+        # Check for absolute paths (starting with / on Unix or drive letter on Windows)
+        if path.startswith('/') or (len(path) > 2 and path[1] == ':'):
+            return True
+        
+        # Check if path exists locally or can be created
+        try:
+            import os
+            if os.path.exists(path) or os.path.exists(os.path.dirname(path)):
+                return True
+        except Exception:
+            pass
+        
+        # Default to local path if uncertain
+        return True
+
+    def _is_valid_identifier(self, identifier: str) -> bool:
+        """Check if a string is a valid HuggingFace identifier (allows alphanumeric, hyphens, underscores)."""
+        if not identifier:
+            return False
+        
+        # Allow alphanumeric characters, hyphens, and underscores
+        import re
+        return bool(re.match(r'^[a-zA-Z0-9_-]+$', identifier))
 
     def create_pipeline_steps(self, dataset_configs: List[DatasetConfig]) -> List[Any]:
         """Create datatrove processing pipeline steps."""
@@ -122,19 +211,48 @@ class DatatrovePreprocessor:
         """
         print("🚀 Starting datatrove preprocessing pipeline...")
 
-        # Create output directory
+        # Create output directory for local output
         os.makedirs(output_path, exist_ok=True)
         temp_output = os.path.join(output_path, "datatrove_temp")
 
         # Create pipeline steps
         pipeline_steps = self.create_pipeline_steps(dataset_configs)
 
-        # Add writer at the end
-        writer = JsonlWriter(
+        # Determine output strategy based on configuration
+        hf_dataset_id = self.config.get('dataset_prepared_hf_id')
+        local_path = output_path
+        
+        writers = []
+        
+        # Always save locally first
+        local_writer = JsonlWriter(
             output_folder=temp_output,
             compression="gzip"
         )
-        pipeline_steps.append(writer)
+        writers.append(local_writer)
+        print(f"📁 Will save locally to: {temp_output}")
+        
+        # Optionally upload to HuggingFace Hub
+        if hf_dataset_id:
+            try:
+                # Validate HF dataset ID format
+                if not self._is_valid_hf_dataset_id(hf_dataset_id):
+                    print(f"⚠️  Warning: Invalid HuggingFace dataset ID format: {hf_dataset_id}")
+                    print("   Expected format: 'username/dataset-name'. Skipping HF upload.")
+                else:
+                    hf_writer = HuggingFaceDatasetWriter(
+                        dataset=hf_dataset_id,
+                        private=True,  # Default to private for safety
+                        compression="snappy"
+                    )
+                    writers.append(hf_writer)
+                    print(f"☁️  Will also upload to HuggingFace Hub: {hf_dataset_id}")
+            except Exception as e:
+                print(f"⚠️  Warning: Could not set up HuggingFace upload: {e}")
+                print("   Continuing with local output only.")
+        
+        # Add writers to pipeline
+        pipeline_steps.extend(writers)
 
         # Execute pipeline
         executor = LocalPipelineExecutor(
@@ -144,9 +262,14 @@ class DatatrovePreprocessor:
         )
 
         print(f"📊 Running pipeline with {self.config.get('num_workers', 1)} workers...")
-        executor.run()
+        try:
+            executor.run()
+            print("✅ Pipeline execution completed successfully!")
+        except Exception as e:
+            print(f"❌ Pipeline execution failed: {e}")
+            raise
 
-        # Load the processed dataset
+        # Load the processed dataset from local output
         print("📖 Loading processed dataset...")
         try:
             # Try to load from JSONL files generated by JsonlWriter
@@ -166,13 +289,37 @@ class DatatrovePreprocessor:
             import shutil
             try:
                 shutil.rmtree(temp_output)
+                print("🧹 Cleaned up temporary files")
             except Exception as e:
                 print(f"Warning: Could not clean up temp directory: {e}")
 
         print(f"✅ Datatrove preprocessing complete!")
         print(f"   Final dataset size: {len(processed_dataset)} samples")
+        
+        if hf_dataset_id:
+            print(f"   Local output: {output_path}")
+            print(f"   HuggingFace dataset: https://huggingface.co/datasets/{hf_dataset_id}")
+        else:
+            print(f"   Output saved to: {output_path}")
 
         return processed_dataset
+
+    def _is_valid_hf_dataset_id(self, dataset_id: str) -> bool:
+        """Validate HuggingFace dataset ID format."""
+        if not dataset_id or '/' not in dataset_id:
+            return False
+        
+        parts = dataset_id.split('/')
+        if len(parts) != 2:
+            return False
+        
+        username, dataset_name = parts
+        
+        # Basic validation: should be valid identifiers  
+        if not (self._is_valid_identifier(username) and self._is_valid_identifier(dataset_name)):
+            return False
+        
+        return True
 
     def _load_from_datatrove_output(self, output_path: str) -> Dataset:
         """Load dataset from datatrove output files (JSONL format)."""
