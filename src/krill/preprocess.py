@@ -163,13 +163,34 @@ def _pack_and_save_dataset(config: KrillConfig, tokenized, filter_dropped_tokens
                           map_kwargs={"batch_size": batch_size})
     monitor.report_current("after packing")
     
-    # Drop incomplete last chunk and record dropped tokens
+    # Drop incomplete samples and record dropped tokens
     last_dropped_chunk_length = 0
     if len(packed) > 0:
-        last_len = len(packed[-1]["input_ids"])
-        if last_len < config.sequence_len:
-            last_dropped_chunk_length = last_len
-            packed = packed.select(list(range(len(packed) - 1)))
+        # In memory-efficient mode, smaller batch sizes can cause more incomplete samples
+        # So we need to filter all samples with incorrect lengths, not just the last one
+        if config.preprocess_memory_efficient:
+            correct_indices = [
+                i for i, sample in enumerate(packed)
+                if len(sample["input_ids"]) == config.sequence_len
+            ]
+            if len(correct_indices) < len(packed):
+                dropped_samples = len(packed) - len(correct_indices)
+                # Calculate total dropped tokens from incomplete samples
+                incorrect_indices = [
+                    i for i in range(len(packed)) 
+                    if i not in correct_indices
+                ]
+                last_dropped_chunk_length = sum(
+                    len(packed[i]["input_ids"]) for i in incorrect_indices
+                )
+                packed = packed.select(correct_indices)
+                print(f"Dropped {dropped_samples} incomplete samples due to memory-efficient batch processing")
+        else:
+            # Standard mode: only drop the last sample if incomplete
+            last_len = len(packed[-1]["input_ids"])
+            if last_len < config.sequence_len:
+                last_dropped_chunk_length = last_len
+                packed = packed.select(list(range(len(packed) - 1)))
 
     # Save
     monitor.report_current("before saving")
