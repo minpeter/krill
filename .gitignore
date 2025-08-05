@@ -4,3 +4,12 @@ build
 *.egg-info
 artifacts
 wandb
+
+# Test artifacts and temporary files  
+test_artifacts/
+test_*.yaml
+*_test.yaml
+
+# Cache directories
+cache/
+.cache/

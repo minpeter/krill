@@ -22,6 +22,7 @@ Krill is a minimalistic training framework for Large Language Models (LLMs) buil
 
 - Modular CLI with commands for preprocessing, tokenizer training, model training, inference, and dataset inspection
 - Support for Hugging Face Transformers, Accelerate, and Flash Attention
+- **Memory-efficient preprocessing** for large datasets with chunked processing and file-based deduplication
 - Configurable via YAML files with validation using Pydantic
 - Automatic environment optimizations (e.g., Flash Attention)
 - Integration with Hugging Face Hub for model and tokenizer pushing
@@ -68,6 +69,16 @@ Launches model training using Accelerate. Accepts extra `accelerate launch` argu
 ### krill preprocess <config>
 
 Preprocesses datasets as specified in the YAML config.
+
+**Memory-Efficient Mode:** For large datasets, enable memory-efficient preprocessing:
+
+```yaml
+preprocess_memory_efficient: true
+preprocess_chunk_size: 10000
+preprocess_dedup_cache_dir: ./cache/dedup
+```
+
+See [Memory-Efficient Preprocessing Guide](MEMORY_EFFICIENT_PREPROCESSING.md) for details.
 
 ### krill inspect-dataset <config>
 

@@ -1,0 +1,37 @@
+# Example configuration for memory-efficient preprocessing
+# This demonstrates the new memory efficiency features
+
+# Tokenizer configuration
+vocab_size: 32000
+hub_tokenizer_id: minpeter/webtext-tokenizer-32k
+
+# Preprocessing configuration
+sequence_len: 2048
+dataset_prepared_path: ./artifacts/dataset_memory_efficient
+dataset_prepared_min_length: 100
+
+# Memory efficiency settings (NEW FEATURES)
+preprocess_memory_efficient: true        # Enable memory-efficient mode
+preprocess_chunk_size: 5000              # Process in chunks of 5000 samples
+preprocess_dedup_cache_dir: ./cache/dedup # Persistent deduplication cache
+
+# Dataset configuration
+datasets:
+  - path: your/large/dataset
+    split: train
+    text_column: text
+
+# Training configuration (not used during preprocessing)
+hub_model_id: your/model/id
+output_dir: ./artifacts/models/your_model
+
+num_epochs: 1
+learning_rate: 3e-4
+weight_decay: 0.01
+optimizer: muon
+muon_implementation: moonlight
+
+micro_batch_size: 4
+gradient_accumulation_steps: 8
+
+model_config_name: small
