@@ -35,10 +35,8 @@ class KrillConfig(BaseModel):
     micro_batch_size: int | None = Field(default=1)
     
     # Memory efficiency options for preprocessing
-    preprocess_chunk_size: int = Field(default=10000, description="Number of samples to process in each chunk")
+    preprocess_chunk_size: int = Field(default=500, description="Number of samples to process in each chunk for memory-efficient mode")
     preprocess_memory_efficient: bool = Field(default=False, description="Enable memory-efficient preprocessing")
-    preprocess_dedup_cache_dir: Optional[str] = Field(default=None, description="Directory for deduplication cache files")
-    preprocess_save_shard_size: str = Field(default="200MB", description="Maximum size of dataset shards when saving (e.g., '200MB', '1GB')")
 
 
 def load_config(path: str) -> KrillConfig:

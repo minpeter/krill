@@ -2,8 +2,8 @@
 # This demonstrates the new memory efficiency features
 
 # Tokenizer configuration
-vocab_size: 48000
-hub_tokenizer_id: pretraining/fw2-edu-kr-tokenizer-48k
+vocab_size: 50257
+hub_tokenizer_id: gpt2
 
 # Preprocessing configuration
 sequence_len: 2048
@@ -12,8 +12,7 @@ dataset_prepared_min_length: 100
 
 # Memory efficiency settings (simplified approach)
 preprocess_memory_efficient: true # Enable memory-efficient mode
-preprocess_chunk_size: 1000 # Batch size for tokenization (reduced from 5000)
-preprocess_save_shard_size: 50MB # Smaller shards to reduce memory spikes during save
+preprocess_chunk_size: 500 # Process only 500 samples in memory at a time
 
 # Dataset configuration
 datasets:
