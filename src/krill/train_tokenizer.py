@@ -28,7 +28,7 @@ def train_and_save_huggingface_tokenizer(
 ):
     # Define additional tokens
     additional_tokens = [
-        "<|endoftext|>",
+        "<|boundary|>",  # Token used as eos, pad, and unk during pretraining
         "<|im_start|>",
         "<|im_end|>",
         AddedToken("<tool_call>", special=False, normalized=False),
@@ -91,9 +91,9 @@ def train_and_save_huggingface_tokenizer(
     print("\n✅ Saving tokenizer in AutoTokenizer compatible format...")
     fast_tokenizer = PreTrainedTokenizerFast(
         tokenizer_object=tokenizer,
-        unk_token="<|endoftext|>",
-        pad_token="<|endoftext|>",
-        eos_token="<|endoftext|>",
+        unk_token="<|boundary|>",
+        pad_token="<|boundary|>",
+        eos_token="<|boundary|>",
         bos_token=None,
         add_bos_token=False,
         add_prefix_space=False,

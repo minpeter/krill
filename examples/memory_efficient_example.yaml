@@ -2,8 +2,8 @@
 # This demonstrates the new memory efficiency features
 
 # Tokenizer configuration
-vocab_size: 32000
-hub_tokenizer_id: minpeter/webtext-tokenizer-32k
+vocab_size: 48000
+hub_tokenizer_id: minpeter/fw2-edu-kr-tokenizer-48k
 
 # Preprocessing configuration
 sequence_len: 2048
@@ -11,15 +11,15 @@ dataset_prepared_path: ./artifacts/dataset_memory_efficient
 dataset_prepared_min_length: 100
 
 # Memory efficiency settings (NEW FEATURES)
-preprocess_memory_efficient: true        # Enable memory-efficient mode
-preprocess_chunk_size: 5000              # Process in chunks of 5000 samples
+preprocess_memory_efficient: true # Enable memory-efficient mode
+preprocess_chunk_size: 5000 # Process in chunks of 5000 samples
 preprocess_dedup_cache_dir: ./artifacts/cache/dedup # Persistent deduplication cache
-preprocess_save_shard_size: 100MB        # Reduce memory spike during save with smaller shards
+preprocess_save_shard_size: 100MB # Reduce memory spike during save with smaller shards
 
 # Dataset configuration
 datasets:
   - path: minpeter/fineweb-2-edu-korean
-    split: train[:100_000]
+    split: train[:10_000]
     text_column: text
 
 # Training configuration (not used during preprocessing)
