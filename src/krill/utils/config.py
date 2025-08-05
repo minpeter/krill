@@ -10,6 +10,7 @@ class DatasetConfig(BaseModel):
     path: str
     split: str = Field(default="train")
     text_column: str = Field(default="text")
+    name: Optional[str] = Field(default=None, description="Dataset configuration name (for datasets with multiple configs)")
 
 
 class KrillConfig(BaseModel):
