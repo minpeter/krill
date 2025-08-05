@@ -138,11 +138,19 @@ def stream_dataset_batches(dataset_config, batch_size: int = 1000):
             max_samples = int(slice_part)
     
     # Use streaming mode to avoid loading full dataset
-    dataset = load_dataset(
-        dataset_config.path, 
-        split=base_split,
-        streaming=True  # This is the key - streaming mode!
-    )
+    if hasattr(dataset_config, 'name') and dataset_config.name:
+        dataset = load_dataset(
+            dataset_config.path, 
+            dataset_config.name,
+            split=base_split,
+            streaming=True  # This is the key - streaming mode!
+        )
+    else:
+        dataset = load_dataset(
+            dataset_config.path, 
+            split=base_split,
+            streaming=True  # This is the key - streaming mode!
+        )
     
     # Rename text column if needed
     if getattr(dataset_config, 'text_column', 'text') != 'text':
@@ -473,3 +481,182 @@ def process_datasets_streaming(dataset_configs, batch_size: int = 1000,
         import shutil
         if os.path.exists(temp_output_dir):
             shutil.rmtree(temp_output_dir)
+
+
+def process_datasets_streaming_optimized(dataset_configs, batch_size: int = 1000, 
+                                        cache_dir: Optional[str] = None,
+                                        tokenizer: PreTrainedTokenizer = None,
+                                        min_length: int = 100,
+                                        sequence_len: int = 2048,
+                                        output_dir: str = None,
+                                        shard_size: str = "50MB") -> tuple[Dataset, dict]:
+    """
+    Truly memory-efficient streaming approach that never accumulates all data in memory.
+    This approach directly builds the final dataset structure without intermediate collections.
+    """
+    
+    deduplicator = StreamingFileBasedDeduplicator(cache_dir)
+    
+    stats = {
+        'total_samples_processed': 0,
+        'total_samples_after_quality_filter': 0,
+        'total_samples_after_dedup': 0,
+        'total_samples_after_length_filter': 0,
+        'total_packed_samples': 0,
+        'total_tokens_dropped_quality': 0,
+        'total_tokens_dropped_length': 0,
+        'total_tokens_dropped_packing': 0
+    }
+    
+    # Create output directory
+    os.makedirs(output_dir, exist_ok=True)
+    
+    # Use a temporary directory for incremental dataset building
+    import tempfile
+    temp_dir = tempfile.mkdtemp(prefix="krill_opt_")
+    chunk_datasets = []
+    chunk_counter = 0
+    
+    # Memory-efficient chunk size (process in smaller chunks)
+    chunk_size = 500  # Keep only 500 samples in memory at a time (reduced from 1000)
+    current_chunk = []
+    
+    try:
+        for ds_cfg in dataset_configs:
+            print(f"\nStreaming dataset: {ds_cfg.path}")
+            
+            for batch, batch_num, total_so_far in stream_dataset_batches(ds_cfg, batch_size):
+                print(f"Processing batch {batch_num}, total samples seen: {total_so_far}")
+                stats['total_samples_processed'] += len(batch)
+                
+                # Process batch (clean, quality filter, dedupe)
+                processed_batch = process_batch_streaming(batch, deduplicator, min_length)
+                stats['total_samples_after_quality_filter'] += len(processed_batch)
+                stats['total_samples_after_dedup'] += len(processed_batch)
+                
+                if not processed_batch:
+                    continue
+                
+                # Tokenize batch
+                tokenized_batch = tokenize_batch_streaming(processed_batch, tokenizer)
+                
+                # Filter by length
+                filtered_batch, dropped_tokens = filter_batch_by_length_streaming(
+                    tokenized_batch, min_length
+                )
+                stats['total_samples_after_length_filter'] += len(filtered_batch)
+                stats['total_tokens_dropped_length'] += dropped_tokens
+                
+                if not filtered_batch:
+                    continue
+                
+                # Pack batch
+                packed_batch, dropped_packing_tokens = pack_batch_streaming(
+                    filtered_batch, sequence_len
+                )
+                stats['total_packed_samples'] += len(packed_batch)
+                stats['total_tokens_dropped_packing'] += dropped_packing_tokens
+                
+                if packed_batch:
+                    # Add to current chunk
+                    current_chunk.extend(packed_batch)
+                    
+                    # If chunk is full, save it and clear memory
+                    if len(current_chunk) >= chunk_size:
+                        chunk_path = os.path.join(temp_dir, f"chunk_{chunk_counter:05d}")
+                        chunk_dataset = Dataset.from_list(current_chunk)
+                        chunk_dataset.save_to_disk(chunk_path)
+                        chunk_datasets.append(chunk_path)
+                        
+                        print(f"  Saved chunk {chunk_counter} with {len(current_chunk)} samples")
+                        current_chunk.clear()  # Clear memory immediately
+                        chunk_counter += 1
+                
+                # Report progress
+                if batch_num % 10 == 0:
+                    print(f"  Batch {batch_num}: {len(batch)} -> {len(processed_batch)} -> "
+                          f"{len(filtered_batch)} -> {len(packed_batch)} samples")
+        
+        # Save any remaining samples in the current chunk
+        if current_chunk:
+            chunk_path = os.path.join(temp_dir, f"chunk_{chunk_counter:05d}")
+            chunk_dataset = Dataset.from_list(current_chunk)
+            chunk_dataset.save_to_disk(chunk_path)
+            chunk_datasets.append(chunk_path)
+            print(f"  Saved final chunk {chunk_counter} with {len(current_chunk)} samples")
+            current_chunk.clear()
+        
+        print(f"\nCombining {len(chunk_datasets)} chunks efficiently...")
+        
+        # Combine chunks efficiently in small groups to minimize memory usage
+        if len(chunk_datasets) == 0:
+            final_dataset = Dataset.from_dict({"input_ids": [], "attention_mask": []})
+        elif len(chunk_datasets) == 1:
+            # Just move the single chunk
+            import shutil
+            final_dataset = Dataset.load_from_disk(chunk_datasets[0])
+            final_dataset.save_to_disk(output_dir, max_shard_size=shard_size)
+        else:
+            # Combine in groups of 2 to minimize memory usage (reduced from 3)
+            combined_chunks = []
+            group_size = 2
+            
+            for i in range(0, len(chunk_datasets), group_size):
+                group = chunk_datasets[i:i + group_size]
+                group_datasets = [Dataset.load_from_disk(path) for path in group]
+                
+                if len(group_datasets) == 1:
+                    combined_group = group_datasets[0]
+                else:
+                    from datasets import concatenate_datasets
+                    combined_group = concatenate_datasets(group_datasets)
+                
+                # Save combined group
+                group_path = os.path.join(temp_dir, f"group_{i // group_size}")
+                combined_group.save_to_disk(group_path, max_shard_size=shard_size)
+                combined_chunks.append(group_path)
+                
+                # Clear memory immediately
+                del group_datasets, combined_group
+                print(f"  Combined group {i // group_size} with {len(group)} chunks")
+            
+            # Final combination
+            if len(combined_chunks) == 1:
+                import shutil
+                final_dataset = Dataset.load_from_disk(combined_chunks[0])
+                final_dataset.save_to_disk(output_dir, max_shard_size=shard_size)
+            else:
+                final_groups = []
+                for path in combined_chunks:
+                    final_groups.append(Dataset.load_from_disk(path))
+                
+                from datasets import concatenate_datasets
+                final_dataset = concatenate_datasets(final_groups)
+                final_dataset.save_to_disk(output_dir, max_shard_size=shard_size)
+                
+                # Clear memory
+                del final_groups
+        
+        # Load the final dataset (metadata only)
+        final_dataset = Dataset.load_from_disk(output_dir)
+        
+        print(f"\nOptimized processing complete:")
+        print(f"  Total samples processed: {stats['total_samples_processed']:,}")
+        print(f"  After quality filtering: {stats['total_samples_after_quality_filter']:,}")
+        print(f"  After deduplication: {stats['total_samples_after_dedup']:,}")
+        print(f"  After length filtering: {stats['total_samples_after_length_filter']:,}")
+        print(f"  Final packed samples: {len(final_dataset):,}")
+        print(f"  Tokens dropped (length): {stats['total_tokens_dropped_length']:,}")
+        print(f"  Tokens dropped (packing): {stats['total_tokens_dropped_packing']:,}")
+        
+        return final_dataset, stats
+    
+    finally:
+        # Clean up deduplication cache if using temporary directory
+        if cache_dir is None:
+            deduplicator.cleanup()
+        
+        # Clean up temp directory
+        import shutil
+        if os.path.exists(temp_dir):
+            shutil.rmtree(temp_dir)
