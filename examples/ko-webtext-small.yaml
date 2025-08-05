@@ -1,6 +1,6 @@
 # krill train-tokenizer
 vocab_size: 32000
-hub_tokenizer_id: minpeter/tiny-ko-tokenizer-32k-250725
+hub_tokenizer_id: minpeter/fw2-edu-kr-tokenizer-48k
 
 # krill preprocess
 sequence_len: 8192
