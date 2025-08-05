@@ -18,7 +18,7 @@ preprocess_save_shard_size: 50MB # Smaller shards to reduce memory spikes during
 # Dataset configuration
 datasets:
   - path: minpeter/fineweb-2-edu-korean
-    split: train[:1000]  # Very small for testing
+    split: train[:10_000]
     text_column: text
 
 # Training configuration (not used during preprocessing)
