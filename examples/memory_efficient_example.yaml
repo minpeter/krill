@@ -3,7 +3,7 @@
 
 # Tokenizer configuration
 vocab_size: 48000
-hub_tokenizer_id: pretraining/fw2-edu-kr-tokenizer-48k
+hub_tokenizer_id: minpeter/fw2-edu-kr-tokenizer-48k
 
 # Preprocessing configuration
 sequence_len: 2048
@@ -18,7 +18,7 @@ preprocess_save_shard_size: 50MB # Smaller shards to reduce memory spikes during
 # Dataset configuration
 datasets:
   - path: minpeter/fineweb-2-edu-korean
-    split: train[:50_000]  # Reduced for testing
+    split: train[:1000]  # Very small for testing
     text_column: text
 
 # Training configuration (not used during preprocessing)

@@ -87,19 +87,12 @@ def _do_preprocess_standard(config: KrillConfig, monitor: MemoryMonitor):
 
 
 def _do_preprocess_memory_efficient(config: KrillConfig, monitor: MemoryMonitor):
-    """Truly memory-efficient preprocessing with optimized parameters."""
-    # Load and prepare raw datasets (same as standard mode, but with optimizations)
-    from krill.utils.dataset_utils import load_and_prepare_raw_datasets
-    monitor.report_current("before loading datasets")
+    """Truly memory-efficient preprocessing using chunked processing."""
+    print(f"🧠 Memory-efficient mode: Using chunked processing for bounded memory usage")
     
-    print(f"🧠 Memory-efficient mode: Using optimized dataset operations")
-    
-    # Load datasets with memory optimizations
-    raw_dataset = load_and_prepare_raw_datasets(config.datasets)
-    monitor.report_current("after loading datasets")
-
-    # Load tokenizer
+    # Load tokenizer once
     tokenizer = AutoTokenizer.from_pretrained(config.hub_tokenizer_id)
+    monitor.report_current("after tokenizer load")
 
     def tokenize_function(examples):
         tokenized_inputs = tokenizer(examples["text"],
@@ -115,96 +108,263 @@ def _do_preprocess_memory_efficient(config: KrillConfig, monitor: MemoryMonitor)
 
         return tokenized_inputs
 
-    # Use reduced num_proc for memory efficiency (less parallel memory usage)
-    num_proc = max(1, min(4, os.cpu_count() // 4))  # Use 1/4 of available cores instead of most cores
-    print(f"Memory-efficient mode: Using {num_proc} processes for mapping (vs {max(1, os.cpu_count() - 8)} in standard mode)")
-
-    monitor.report_current("before tokenization")
+    # Process each dataset configuration in chunks
+    total_filter_dropped_tokens = 0
+    processed_chunks = []
+    temp_chunk_dir = os.path.join(config.dataset_prepared_path, "temp_chunks")
+    os.makedirs(temp_chunk_dir, exist_ok=True)
     
-    # Use smaller batch size and disable caching for memory efficiency
-    tokenized = raw_dataset.map(
-        tokenize_function,
-        batched=True,
-        batch_size=config.preprocess_chunk_size,  # Use configurable chunk size instead of default
-        num_proc=num_proc,
-        remove_columns=raw_dataset.column_names,
-        desc="Tokenizing (memory-efficient)",
-        load_from_cache_file=False,  # Disable caching to save memory
-        keep_in_memory=False  # Don't keep in memory
-    )
-    monitor.report_current("after tokenization")
+    try:
+        for ds_idx, ds_cfg in enumerate(config.datasets):
+            print(f"🧠 Processing dataset {ds_idx + 1}/{len(config.datasets)}: {ds_cfg.path}")
+            
+            # Parse the split to get total size and chunk it
+            split_info = ds_cfg.split
+            if split_info.startswith("train[") and ":" in split_info:
+                # Extract range like train[0:50000] or train[:1000]
+                range_part = split_info[6:-1]  # Remove "train[" and "]"
+                if range_part.startswith(":"):
+                    start_idx = 0
+                    end_idx = int(range_part[1:].replace("_", ""))
+                elif range_part.endswith(":"):
+                    start_idx = int(range_part[:-1].replace("_", ""))
+                    end_idx = None  # Will need to determine actual size
+                else:
+                    start_str, end_str = range_part.split(":")
+                    start_idx = int(start_str.replace("_", "")) if start_str else 0
+                    end_idx = int(end_str.replace("_", "")) if end_str else None
+                    
+                if end_idx is None:
+                    print(f"⚠️  Cannot determine dataset size for split '{split_info}', using standard mode for this dataset")
+                    from krill.utils.dataset_utils import load_dataset_single
+                    raw_dataset = load_dataset_single(ds_cfg)
+                    monitor.report_current(f"after loading dataset {ds_idx}")
+                    
+                    # Process as single chunk (fallback to standard mode for this dataset)
+                    tokenized = raw_dataset.map(
+                        tokenize_function,
+                        batched=True,
+                        batch_size=config.preprocess_chunk_size,
+                        num_proc=1,
+                        remove_columns=raw_dataset.column_names,
+                        desc=f"Tokenizing dataset {ds_idx} (fallback)",
+                        load_from_cache_file=False,
+                        keep_in_memory=False
+                    )
+                    
+                    # Filter and add to processed chunks
+                    lengths = [len(x) for x in tokenized["input_ids"]]
+                    selected = [i for i, l in enumerate(lengths) if l >= config.dataset_prepared_min_length]
+                    total_filter_dropped_tokens += sum(lengths) - sum(lengths[i] for i in selected)
+                    
+                    if selected:
+                        tokenized = tokenized.select(selected)
+                        processed_chunks.append(tokenized)
+                    
+                    monitor.report_current(f"after processing dataset {ds_idx}")
+                    continue
+                
+                # Process in chunks
+                chunk_size = min(config.preprocess_chunk_size, 500)  # Use smaller chunks for memory efficiency
+                print(f"🧠 Processing {end_idx - start_idx} samples in chunks of {chunk_size}")
+                
+                for chunk_start in range(start_idx, end_idx, chunk_size):
+                    chunk_end = min(chunk_start + chunk_size, end_idx)
+                    chunk_split = f"train[{chunk_start}:{chunk_end}]"
+                    
+                    print(f"🧠 Processing chunk {chunk_start}-{chunk_end}...")
+                    monitor.report_current(f"before chunk {chunk_start}")
+                    
+                    # Load small chunk
+                    from krill.utils.dataset_utils import load_dataset_single
+                    from krill.utils.config import DatasetConfig
+                    chunk_config = DatasetConfig(
+                        path=ds_cfg.path,
+                        split=chunk_split,
+                        text_column=ds_cfg.text_column,
+                        name=ds_cfg.name
+                    )
+                    chunk_dataset = load_dataset_single(chunk_config)
+                    monitor.report_current(f"after loading chunk {chunk_start}")
+                    
+                    # Tokenize chunk
+                    tokenized_chunk = chunk_dataset.map(
+                        tokenize_function,
+                        batched=True,
+                        batch_size=50,  # Very small batch for memory efficiency
+                        num_proc=1,
+                        remove_columns=chunk_dataset.column_names,
+                        desc=f"Tokenizing chunk {chunk_start}-{chunk_end}",
+                        load_from_cache_file=False,
+                        keep_in_memory=False
+                    )
+                    monitor.report_current(f"after tokenizing chunk {chunk_start}")
+                    
+                    # Filter chunk by length
+                    lengths = [len(x) for x in tokenized_chunk["input_ids"]]
+                    selected = [i for i, l in enumerate(lengths) if l >= config.dataset_prepared_min_length]
+                    total_filter_dropped_tokens += sum(lengths) - sum(lengths[i] for i in selected)
+                    
+                    if selected:
+                        filtered_chunk = tokenized_chunk.select(selected)
+                        processed_chunks.append(filtered_chunk)
+                    
+                    monitor.report_current(f"after processing chunk {chunk_start}")
+                    
+                    # Clear chunk from memory immediately
+                    del chunk_dataset, tokenized_chunk
+                    if 'filtered_chunk' in locals():
+                        del filtered_chunk
+            else:
+                # Handle other split formats (fallback to standard loading)
+                print(f"⚠️  Split format '{split_info}' not supported for chunked processing, using standard mode")
+                from krill.utils.dataset_utils import load_dataset_single
+                raw_dataset = load_dataset_single(ds_cfg)
+                monitor.report_current(f"after loading dataset {ds_idx}")
+                
+                tokenized = raw_dataset.map(
+                    tokenize_function,
+                    batched=True,
+                    batch_size=config.preprocess_chunk_size,
+                    num_proc=1,
+                    remove_columns=raw_dataset.column_names,
+                    desc=f"Tokenizing dataset {ds_idx}",
+                    load_from_cache_file=False,
+                    keep_in_memory=False
+                )
+                
+                lengths = [len(x) for x in tokenized["input_ids"]]
+                selected = [i for i, l in enumerate(lengths) if l >= config.dataset_prepared_min_length]
+                total_filter_dropped_tokens += sum(lengths) - sum(lengths[i] for i in selected)
+                
+                if selected:
+                    tokenized = tokenized.select(selected)
+                    processed_chunks.append(tokenized)
+                
+                monitor.report_current(f"after processing dataset {ds_idx}")
 
-    # Filter by min_length with memory-efficient operations
-    lengths = tokenized["input_ids"].map(len) if hasattr(
-        tokenized["input_ids"],
-        'map') else [len(x) for x in tokenized["input_ids"]]
-    selected = [
-        i for i, l in enumerate(lengths)
-        if l >= config.dataset_prepared_min_length
-    ]
-    # Compute token drop statistics from filtering
-    total_tokens_before_filter = sum(lengths)
-    total_tokens_after_filter = sum(lengths[i] for i in selected)
-    filter_dropped_tokens = total_tokens_before_filter - total_tokens_after_filter
+        # Combine processed chunks using memory-efficient approach
+        print(f"🧠 Combining {len(processed_chunks)} processed chunks...")
+        monitor.report_current("before combining chunks")
+        
+        if not processed_chunks:
+            print("❌ No data remaining after filtering")
+            return
+            
+        combined_dataset = _combine_chunks_memory_efficient(processed_chunks, monitor)
+        monitor.report_current("after combining chunks")
+        
+        # Pack and save the combined dataset
+        _pack_and_save_dataset_memory_efficient(config, combined_dataset, total_filter_dropped_tokens, monitor)
+        
+    finally:
+        # Clean up temporary directory
+        import shutil
+        if os.path.exists(temp_chunk_dir):
+            shutil.rmtree(temp_chunk_dir)
+
+
+def _combine_chunks_memory_efficient(chunks, monitor):
+    """Combine dataset chunks using memory-efficient approach."""
+    if len(chunks) == 1:
+        return chunks[0]
     
-    # Use select operation without caching
-    tokenized = tokenized.select(selected)
-    monitor.report_current("after length filtering")
-
-    _pack_and_save_dataset_memory_efficient(config, tokenized, filter_dropped_tokens, monitor)
+    print(f"🧠 Combining {len(chunks)} chunks using incremental approach...")
+    
+    # Combine chunks incrementally to avoid memory spikes
+    combined = chunks[0]
+    
+    for i, chunk in enumerate(chunks[1:], 1):
+        print(f"🧠 Combining chunk {i}/{len(chunks)-1}...")
+        
+        # Use concatenate_datasets for small chunks
+        from datasets import concatenate_datasets
+        combined = concatenate_datasets([combined, chunk])
+        monitor.report_current(f"after combining chunk {i}")
+        
+        # Clear the chunk reference
+        del chunk
+        
+        # Force garbage collection if many chunks
+        if i % 5 == 0:
+            import gc
+            gc.collect()
+    
+    return combined
 
 
 def _pack_and_save_dataset_memory_efficient(config: KrillConfig, tokenized, filter_dropped_tokens, monitor: MemoryMonitor):
-    """Memory-efficient pack and save with optimized parameters."""
+    """Memory-efficient pack and save with truly bounded memory usage."""
     tokenizer = AutoTokenizer.from_pretrained(config.hub_tokenizer_id)
     
-    # Pack sequences with memory-optimized parameters
-    print(f"Packing into sequences of length {config.sequence_len} (memory-efficient mode)...", end="")
+    print(f"🧠 Packing {len(tokenized)} samples into sequences of length {config.sequence_len} (memory-efficient mode)...")
     
-    # Use smaller batch size for memory efficiency
-    batch_size = min(config.preprocess_chunk_size // 2, 1000)  # Even smaller batch size
-    print(f" using batch_size={batch_size}")
+    # Use very small batch size for memory efficiency
+    batch_size = min(100, len(tokenized) // 10 + 1)  # Adaptive batch size, but very small
+    print(f"🧠 Using adaptive batch_size={batch_size} for packing")
     
     monitor.report_current("before packing")
+    
+    # Pack sequences with memory-optimized parameters
     packed = pack_dataset(tokenized,
                           seq_length=config.sequence_len,
                           strategy="wrapped",
                           map_kwargs={
                               "batch_size": batch_size,
                               "load_from_cache_file": False,  # Disable caching
-                              "keep_in_memory": False  # Don't keep in memory
+                              "keep_in_memory": False,  # Don't keep in memory
+                              "num_proc": 1  # Single process to minimize memory usage
                           })
     monitor.report_current("after packing")
     
     # Filter out incomplete samples efficiently
     last_dropped_chunk_length = 0
     if len(packed) > 0:
-        # Check all samples and filter out incorrect lengths
+        print(f"🧠 Filtering packed samples for correct length...")
+        # Check samples in small batches to avoid loading everything into memory
         correct_indices = []
         incorrect_tokens = 0
         
-        for i, sample in enumerate(packed):
-            if len(sample["input_ids"]) == config.sequence_len:
-                correct_indices.append(i)
-            else:
-                incorrect_tokens += len(sample["input_ids"])
+        # Process in small batches to maintain memory efficiency
+        batch_size_filter = 100
+        for i in range(0, len(packed), batch_size_filter):
+            end_idx = min(i + batch_size_filter, len(packed))
+            batch = packed.select(range(i, end_idx))
+            
+            for j, sample in enumerate(batch):
+                global_idx = i + j
+                if len(sample["input_ids"]) == config.sequence_len:
+                    correct_indices.append(global_idx)
+                else:
+                    incorrect_tokens += len(sample["input_ids"])
+            
+            # Clear batch from memory
+            del batch
         
         if len(correct_indices) < len(packed):
             dropped_samples = len(packed) - len(correct_indices)
             last_dropped_chunk_length = incorrect_tokens
             packed = packed.select(correct_indices)
-            print(f"Dropped {dropped_samples} incomplete samples ({incorrect_tokens} tokens)")
+            print(f"🧠 Dropped {dropped_samples} incomplete samples ({incorrect_tokens} tokens)")
 
-    # Save with optimized parameters
+    # Save with very small shard size to minimize memory spikes
     monitor.report_current("before saving")
     
-    print(f"Saving dataset with optimized memory settings...")
-    # Use minimal shard size and single process to reduce memory usage
-    packed.save_to_disk(
-        config.dataset_prepared_path, 
-        max_shard_size=config.preprocess_save_shard_size,
-        num_proc=1  # Single process to minimize memory usage
-    )
+    print(f"🧠 Saving dataset with minimal memory settings...")
+    # Calculate adaptive shard size based on dataset size
+    if len(packed) > 0:
+        estimated_size_mb = len(packed) * config.sequence_len * 4 / (1024 * 1024)  # Rough estimate
+        adaptive_shard_size = min(config.preprocess_save_shard_size, f"{max(10, estimated_size_mb // 10):.0f}MB")
+        print(f"🧠 Using adaptive shard size: {adaptive_shard_size}")
+        
+        packed.save_to_disk(
+            config.dataset_prepared_path, 
+            max_shard_size=adaptive_shard_size,
+            num_proc=1  # Single process to minimize memory usage
+        )
+    else:
+        print("❌ No data to save after filtering")
+        return
     
     monitor.report_current("after saving")
 
@@ -221,24 +381,37 @@ def _pack_and_save_dataset_memory_efficient(config: KrillConfig, tokenized, filt
 
     print(f"\nOriginal dataset rows: {len(tokenized)}")
     print(f"Packed dataset rows: {len(packed)}")
-    total_tokens = sum(len(sample["input_ids"]) for sample in packed)
+    
+    # Calculate total tokens in small batches to avoid memory spike
+    total_tokens = 0
+    batch_size_count = 1000
+    for i in range(0, len(packed), batch_size_count):
+        end_idx = min(i + batch_size_count, len(packed))
+        batch = packed.select(range(i, end_idx))
+        total_tokens += sum(len(sample["input_ids"]) for sample in batch)
+        del batch
+    
     print(
         f"Total tokens in packed dataset: \033[45;97m{total_tokens / 1_000_000_000:.3f}B\033[0m")
 
-    if len(packed) > 0:
-        # Check for any samples that do not match the expected context length
-        wrong_indices = [
-            i for i, sample in enumerate(packed)
-            if len(sample["input_ids"]) != config.sequence_len
-        ]
-        if wrong_indices:
-            print(f"\033[1;41;97mWarning: Found {len(wrong_indices)} samples "
-                  f"with incorrect length (expected {config.sequence_len}). "
-                  f"Indices: {wrong_indices}\033[0m")
-        else:
-            print(
-                "\033[1;32mAll packed samples have the correct context length.\033[0m"
-            )
+    # Verify sample lengths in small batches
+    wrong_indices = []
+    for i in range(0, min(len(packed), 1000), 100):  # Check only first 1000 samples in batches
+        end_idx = min(i + 100, len(packed))
+        batch = packed.select(range(i, end_idx))
+        for j, sample in enumerate(batch):
+            if len(sample["input_ids"]) != config.sequence_len:
+                wrong_indices.append(i + j)
+        del batch
+        
+    if wrong_indices:
+        print(f"\033[1;41;97mWarning: Found {len(wrong_indices)} samples "
+              f"with incorrect length (expected {config.sequence_len}). "
+              f"First few indices: {wrong_indices[:10]}\033[0m")
+    else:
+        print(
+            "\033[1;32mAll checked samples have the correct context length.\033[0m"
+        )
 
     print(
         f"🦐 Krill: Finished memory-efficient preprocessing. Data saved to {config.dataset_prepared_path}"

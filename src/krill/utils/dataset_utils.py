@@ -57,6 +57,35 @@ def is_high_quality_and_unique(example):
     return True
 
 
+def load_dataset_single(ds_cfg):
+    """
+    Load a single dataset with text column handling.
+    """
+    print(f"Loading dataset {ds_cfg.path} split={ds_cfg.split}...")
+    
+    # Handle datasets that require a config name
+    if hasattr(ds_cfg, 'name') and ds_cfg.name:
+        ds = load_dataset(ds_cfg.path, ds_cfg.name, split=ds_cfg.split)
+    else:
+        ds = load_dataset(ds_cfg.path, split=ds_cfg.split)
+        
+    # Rename text column if needed
+    if getattr(ds_cfg, 'text_column', 'text') != 'text':
+        ds = ds.rename_column(ds_cfg.text_column, 'text')
+        
+    # Drop all columns except 'text'
+    ds = ds.remove_columns([col for col in ds.column_names if col != 'text'])
+    
+    # Apply text cleaning to this chunk
+    ds = ds.map(
+        lambda example: {'text': clean_text(example['text'])},
+        num_proc=1,  # Use single process for small chunks
+        desc="Cleaning text"
+    )
+    
+    return ds
+
+
 def load_and_prepare_raw_datasets(dataset_configs):
     """
     Load raw datasets, rename text column to 'text', drop other columns, concatenate,
