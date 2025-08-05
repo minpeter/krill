@@ -17,8 +17,8 @@ preprocess_dedup_cache_dir: ./cache/dedup # Persistent deduplication cache
 
 # Dataset configuration
 datasets:
-  - path: your/large/dataset
-    split: train
+  - path: minpeter/fineweb-2-edu-korean
+    split: train[:10_000]
     text_column: text
 
 # Training configuration (not used during preprocessing)

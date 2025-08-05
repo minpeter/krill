@@ -8,7 +8,7 @@ dataset_prepared_path: ./artifacts/webtext-1k
 dataset_prepared_min_length: 150
 
 datasets:
-  - path: HAERAE-HUB/KOREAN-WEBTEXT
+  - path: minpeter/fineweb-2-edu-korean
     split: train[:10_000]
     text_column: text
 
