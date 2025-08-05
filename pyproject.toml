@@ -31,15 +31,13 @@ dependencies = [
     "pytorch-optimizer>=3.7.0",
     "accelerate>=1.9.0",
     "triton>=3.3.1",
+    "datatrove>=0.5.0",
 ]
 
 [project.optional-dependencies]
 cuda = [
     "flash-attn>=2.8.2",
     "liger-kernel>=0.6.1",
-]
-datatrove = [
-    "datatrove>=0.2.0",
 ]
 
 [tool.uv.sources]

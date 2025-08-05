@@ -1,0 +1,32 @@
+dataset_prepared_min_length: 150
+dataset_prepared_path: ./prepared_data
+datasets:
+- path: your/dataset/path
+  split: train
+  text_column: text
+datatrove:
+  deduplication_algorithm: minhash
+  distributed: false
+  enabled: true
+  minhash_threshold: 0.8
+  num_workers: 64
+  quality_filters:
+    cleanup_temp: true
+    collect_stats: true
+    max_length: 100000
+    min_length: 100
+    use_trafilatura: false
+  streaming: true
+gradient_accumulation_steps: 1
+hub_model_id: your-model-id
+hub_tokenizer_id: huggingface/tokenizers-base
+learning_rate: 0.0003
+micro_batch_size: 1
+model_config_name: small
+muon_implementation: moonlight
+num_epochs: 1
+optimizer: muon
+output_dir: ./output
+sequence_len: 2048
+vocab_size: 32000
+weight_decay: 0.01

@@ -12,6 +12,20 @@ datasets:
     split: train[:10_000]
     text_column: text
 
+datatrove:
+  deduplication_algorithm: minhash
+  distributed: false
+  enabled: true
+  minhash_threshold: 0.8
+  num_workers: 64
+  quality_filters:
+    cleanup_temp: true
+    collect_stats: true
+    max_length: 100000
+    min_length: 100
+    use_trafilatura: false
+  streaming: true
+
 # krill train
 hub_model_id: minpeter/webtext-8k-micro-250801
 output_dir: ./artifacts/models/webtext-8k-micro-250801
