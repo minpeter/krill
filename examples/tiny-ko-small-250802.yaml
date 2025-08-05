@@ -7,6 +7,17 @@ sequence_len: 8192
 dataset_prepared_path: ./artifacts/tiny-ko-small-250802
 dataset_prepared_min_length: 150
 
+# Datatrove preprocessing configuration
+deduplication_algorithm: minhash
+min_length: 100
+max_length: 100000
+use_trafilatura: false
+collect_stats: true
+cleanup_temp: true
+streaming: true
+num_workers: 4
+minhash_threshold: 0.8
+
 datasets:
   - path: HAERAE-HUB/KOREAN-WEBTEXT
     split: train[:10000]

@@ -7,6 +7,17 @@ sequence_len: 1024
 dataset_prepared_path: ./artifacts/webtext-1k
 dataset_prepared_min_length: 150
 
+# Datatrove preprocessing configuration
+deduplication_algorithm: minhash
+min_length: 100
+max_length: 100000
+use_trafilatura: false
+collect_stats: true
+cleanup_temp: true
+streaming: true
+num_workers: 2
+minhash_threshold: 0.8
+
 datasets:
   - path: HAERAE-HUB/KOREAN-WEBTEXT
     split: train[:10_000]

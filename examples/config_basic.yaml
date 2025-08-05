@@ -1,11 +1,22 @@
-# Basic Krill Configuration (Current Implementation)
-# This configuration uses the current preprocessing pipeline without datatrove
+# Basic Krill Configuration with Native Datatrove
+# This configuration uses the native datatrove preprocessing pipeline
 
 sequence_len: 2048
 vocab_size: 32000
 hub_tokenizer_id: "microsoft/DialoGPT-medium"
 dataset_prepared_path: "./prepared_data"
 dataset_prepared_min_length: 150
+
+# Datatrove preprocessing configuration
+deduplication_algorithm: minhash
+min_length: 100
+max_length: 100000
+use_trafilatura: false
+collect_stats: true
+cleanup_temp: true
+streaming: true
+num_workers: 4
+minhash_threshold: 0.8
 
 # Your datasets to preprocess
 datasets:
@@ -23,7 +34,3 @@ muon_implementation: "moonlight"
 model_config_name: "small"
 gradient_accumulation_steps: 1
 micro_batch_size: 1
-
-# Datatrove is disabled by default
-datatrove:
-  enabled: false

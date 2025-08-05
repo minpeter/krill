@@ -7,24 +7,21 @@ sequence_len: 8192
 dataset_prepared_path: ./artifacts/webtext-8k
 dataset_prepared_min_length: 150
 
+# Datatrove preprocessing configuration
+deduplication_algorithm: minhash
+min_length: 100
+max_length: 100000
+use_trafilatura: false
+collect_stats: true
+cleanup_temp: true
+streaming: true
+num_workers: 64
+minhash_threshold: 0.8
+
 datasets:
   - path: HAERAE-HUB/KOREAN-WEBTEXT
     split: train[:10_000]
     text_column: text
-
-datatrove:
-  deduplication_algorithm: minhash
-  distributed: false
-  enabled: true
-  minhash_threshold: 0.8
-  num_workers: 64
-  quality_filters:
-    cleanup_temp: true
-    collect_stats: true
-    max_length: 100000
-    min_length: 100
-    use_trafilatura: false
-  streaming: true
 
 # krill train
 hub_model_id: minpeter/webtext-8k-micro-250801

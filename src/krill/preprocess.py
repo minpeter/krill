@@ -8,27 +8,15 @@ from krill.utils.inspect_dataset import inspect_pretrain_dataset
 
 
 def do_preprocess(config: KrillConfig):
-    """Preprocesses the data based on the loaded Config object."""
-    print("🦐 Krill: Starting preprocessing...")
+    """Preprocesses the data using datatrove pipeline."""
+    print("🦐 Krill: Starting datatrove preprocessing...")
 
     # Prepare output directory
     os.makedirs(config.dataset_prepared_path, exist_ok=True)
 
-    # Determine preprocessing method
-    use_datatrove = (
-        config.datatrove is not None and 
-        config.datatrove.enabled and
-        _is_datatrove_available()
-    )
-    
-    if use_datatrove:
-        print("📊 Using datatrove preprocessing pipeline")
-        raw_dataset = _preprocess_with_datatrove(config)
-    else:
-        if config.datatrove and config.datatrove.enabled:
-            print("⚠️  Datatrove requested but not available. Install with: pip install 'krill[datatrove]'")
-        print("🔄 Using current preprocessing pipeline")
-        raw_dataset = _preprocess_with_current_method(config)
+    # Use datatrove preprocessing
+    print("📊 Using datatrove preprocessing pipeline")
+    raw_dataset = _preprocess_with_datatrove(config)
 
     # Load tokenizer
     tokenizer = AutoTokenizer.from_pretrained(config.hub_tokenizer_id)
@@ -126,21 +114,25 @@ def do_preprocess(config: KrillConfig):
     )
 
 
-def _is_datatrove_available() -> bool:
-    """Check if datatrove is available."""
-    try:
-        from krill.utils.datatrove_utils import is_datatrove_available
-        return is_datatrove_available()
-    except ImportError:
-        return False
-
-
 def _preprocess_with_datatrove(config: KrillConfig):
     """Preprocess using datatrove pipeline."""
     from krill.utils.datatrove_utils import DatatrovePreprocessor
     
+    # Create datatrove config from native config fields
+    datatrove_config = {
+        'deduplication_algorithm': config.deduplication_algorithm,
+        'min_length': config.min_length,
+        'max_length': config.max_length,
+        'use_trafilatura': config.use_trafilatura,
+        'collect_stats': config.collect_stats,
+        'cleanup_temp': config.cleanup_temp,
+        'streaming': config.streaming,
+        'num_workers': config.num_workers,
+        'minhash_threshold': config.minhash_threshold
+    }
+    
     # Initialize preprocessor
-    preprocessor = DatatrovePreprocessor(config.datatrove)
+    preprocessor = DatatrovePreprocessor(datatrove_config)
     
     # Process datasets
     processed_dataset = preprocessor.process_datasets(
@@ -150,9 +142,3 @@ def _preprocess_with_datatrove(config: KrillConfig):
     
     print(f"📊 Datatrove processed {len(processed_dataset)} documents")
     return processed_dataset
-
-
-def _preprocess_with_current_method(config: KrillConfig):
-    """Preprocess using the current implementation."""
-    from krill.utils.dataset_utils import load_and_prepare_raw_datasets
-    return load_and_prepare_raw_datasets(config.datasets)

@@ -12,20 +12,6 @@ class DatasetConfig(BaseModel):
     text_column: str = Field(default="text")
 
 
-class DatatroveConfig(BaseModel):
-    """Configuration for datatrove integration."""
-    enabled: bool = Field(default=False, description="Enable datatrove preprocessing")
-    deduplication_algorithm: str = Field(default="minhash", description="Deduplication algorithm: 'minhash' or 'exact'")
-    quality_filters: Dict[str, Any] = Field(default_factory=lambda: {"min_length": 100}, description="Quality filter settings")
-    distributed: bool = Field(default=False, description="Enable distributed processing")
-    streaming: bool = Field(default=True, description="Enable streaming processing")
-    num_workers: int = Field(default=1, description="Number of worker processes")
-    minhash_threshold: float = Field(default=0.8, description="MinHash similarity threshold for deduplication")
-    
-    class Config:
-        extra = "allow"  # Allow additional datatrove-specific settings
-
-
 class KrillConfig(BaseModel):
     sequence_len: int
     vocab_size: int = Field(default=32000)
@@ -47,8 +33,16 @@ class KrillConfig(BaseModel):
     # each GPU. Batch size per gpu = micro_batch_size * gradient_accumulation_steps
     micro_batch_size: int | None = Field(default=1)
     
-    # Datatrove integration
-    datatrove: Optional[DatatroveConfig] = Field(default_factory=lambda: DatatroveConfig(), description="Datatrove preprocessing configuration")
+    # Native datatrove preprocessing options
+    deduplication_algorithm: str = Field(default="minhash", description="Deduplication algorithm: 'minhash' or 'exact'")
+    min_length: int = Field(default=100, description="Minimum text length for quality filtering")
+    max_length: Optional[int] = Field(default=None, description="Maximum text length for quality filtering")
+    use_trafilatura: bool = Field(default=False, description="Use Trafilatura for text extraction")
+    collect_stats: bool = Field(default=True, description="Collect statistics during processing")
+    cleanup_temp: bool = Field(default=True, description="Clean up temporary files after processing")
+    streaming: bool = Field(default=True, description="Enable streaming processing")
+    num_workers: int = Field(default=1, description="Number of worker processes")
+    minhash_threshold: float = Field(default=0.8, description="MinHash similarity threshold for deduplication")
 
 
 def load_config(path: str) -> KrillConfig:

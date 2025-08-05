@@ -1,11 +1,29 @@
-# Example Krill Configuration with Datatrove Integration
-# This configuration demonstrates how to use datatrove for enhanced preprocessing
+# Example Krill Configuration with Native Datatrove Integration
+# This configuration demonstrates the native datatrove preprocessing approach
 
 sequence_len: 2048
 vocab_size: 32000
 hub_tokenizer_id: "microsoft/DialoGPT-medium"
 dataset_prepared_path: "./prepared_data"
 dataset_prepared_min_length: 150
+
+# Native datatrove configuration for enhanced preprocessing
+# Deduplication algorithm: 'minhash' (fast, approximate) or 'exact' (fallback to minhash)
+deduplication_algorithm: "minhash"
+
+# Quality filtering settings
+min_length: 100          # Minimum text length in characters
+max_length: 100000       # Maximum text length in characters (optional)
+use_trafilatura: false   # Use advanced text extraction (slower but higher quality)
+collect_stats: true      # Collect word/character statistics
+cleanup_temp: true       # Clean up temporary files after processing
+
+# Processing settings
+streaming: true           # Use streaming for memory efficiency
+num_workers: 4            # Number of parallel workers (adjust based on CPU cores)
+
+# MinHash deduplication threshold (0.0-1.0, lower = more aggressive deduplication)
+minhash_threshold: 0.8
 
 # Your datasets to preprocess
 datasets:
@@ -27,27 +45,3 @@ muon_implementation: "moonlight"
 model_config_name: "small"
 gradient_accumulation_steps: 1
 micro_batch_size: 1
-
-# Datatrove configuration for enhanced preprocessing
-datatrove:
-  # Enable datatrove preprocessing (requires: pip install 'krill[datatrove]')
-  enabled: true
-  
-  # Deduplication algorithm: 'minhash' (fast, approximate) or 'exact' (slower, perfect)
-  deduplication_algorithm: "minhash"
-  
-  # Quality filtering settings
-  quality_filters:
-    min_length: 100          # Minimum text length in characters
-    max_length: 100000       # Maximum text length in characters (optional)
-    use_trafilatura: false   # Use advanced text extraction (slower but higher quality)
-    collect_stats: true      # Collect word/character statistics
-    cleanup_temp: true       # Clean up temporary files after processing
-  
-  # Processing settings
-  distributed: false         # Enable distributed processing (advanced)
-  streaming: true           # Use streaming for memory efficiency
-  num_workers: 4            # Number of parallel workers (adjust based on CPU cores)
-  
-  # MinHash deduplication threshold (0.0-1.0, lower = more aggressive deduplication)
-  minhash_threshold: 0.8

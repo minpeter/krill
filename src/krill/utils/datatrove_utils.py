@@ -2,32 +2,21 @@
 Datatrove integration utilities for enhanced preprocessing.
 """
 import os
-import warnings
-from typing import List, Dict, Any, Optional, Iterator
+from typing import List, Dict, Any, Optional
 from pathlib import Path
 
 from datasets import Dataset
-from krill.utils.config import DatatroveConfig, DatasetConfig
+from krill.utils.config import DatasetConfig
 
-# Try to import datatrove, with graceful fallback
-try:
-    from datatrove.executor import LocalPipelineExecutor
-    from datatrove.pipeline.readers import HuggingFaceDatasetReader
-    from datatrove.pipeline.writers import HuggingFaceDatasetWriter
-    # from datatrove.pipeline.filters import SampleFilter
-    # from datatrove.pipeline.dedup import MinhashDedupFilter, ExactDedupFilter
-    from datatrove.pipeline.dedup import MinhashDedupFilter
-    from datatrove.pipeline.extractors import Trafilatura
-    # from datatrove.pipeline.stats import WordsCounter, CharsCounter
-    from datatrove.data import Document
-    DATATROVE_AVAILABLE = True
-except ImportError:
-    DATATROVE_AVAILABLE = False
-    warnings.warn(
-        "Datatrove not available. Install with: pip install 'krill[datatrove]' "
-        "or pip install datatrove>=0.2.0. Falling back to current preprocessing.",
-        ImportWarning
-    )
+# Import datatrove components
+from datatrove.executor import LocalPipelineExecutor
+from datatrove.pipeline.readers import HuggingFaceDatasetReader
+from datatrove.pipeline.writers import HuggingFaceDatasetWriter
+from datatrove.pipeline.filters.base_filter import BaseFilter
+from datatrove.pipeline.dedup import MinhashDedupFilter
+from datatrove.pipeline.extractors import Trafilatura
+from datatrove.pipeline.stats import TokenStats, WordStats
+from datatrove.data import Document
 
 
 class DatatrovePreprocessor:
@@ -35,13 +24,7 @@ class DatatrovePreprocessor:
     Datatrove-based preprocessor that provides enhanced text processing capabilities.
     """
 
-    def __init__(self, config: DatatroveConfig):
-        if not DATATROVE_AVAILABLE:
-            raise ImportError(
-                "Datatrove is not available. Install with: pip install 'krill[datatrove]' "
-                "or pip install datatrove>=0.2.0"
-            )
-
+    def __init__(self, config: Dict[str, Any]):
         self.config = config
         self.stats = {
             'total_processed': 0,
@@ -60,21 +43,21 @@ class DatatrovePreprocessor:
                 dataset=ds_config.path,
                 dataset_options={'split': ds_config.split},
                 text_key=ds_config.text_column,
-                streaming=self.config.streaming
+                streaming=self.config.get('streaming', True)
             )
             pipeline_steps.append(reader)
 
         # 2. Text extractor and cleaner (using Trafilatura for robust text extraction)
-        if self.config.quality_filters.get('use_trafilatura', False):
+        if self.config.get('use_trafilatura', False):
             extractor = Trafilatura()
             pipeline_steps.append(extractor)
 
         # 3. Quality filters
-        min_length = self.config.quality_filters.get('min_length', 100)
-        max_length = self.config.quality_filters.get('max_length', None)
+        min_length = self.config.get('min_length', 100)
+        max_length = self.config.get('max_length', None)
 
         # Custom quality filter
-        class QualityFilter(SampleFilter):
+        class QualityFilter(BaseFilter):
             def __init__(self, min_len: int, max_len: Optional[int] = None):
                 super().__init__()
                 self.min_len = min_len
@@ -91,25 +74,27 @@ class DatatrovePreprocessor:
         quality_filter = QualityFilter(min_length, max_length)
         pipeline_steps.append(quality_filter)
 
-        # 4. Deduplication
-        if self.config.deduplication_algorithm == "minhash":
+        # 4. Deduplication - only MinHash is available
+        dedup_algorithm = self.config.get('deduplication_algorithm', 'minhash')
+        if dedup_algorithm == "minhash":
             deduplicator = MinhashDedupFilter(
-                threshold=self.config.minhash_threshold,
+                threshold=self.config.get('minhash_threshold', 0.8),
                 store_fingerprints=True
             )
-        elif self.config.deduplication_algorithm == "exact":
-            deduplicator = ExactDedupFilter()
-        else:
-            raise ValueError(
-                f"Unknown deduplication algorithm: {self.config.deduplication_algorithm}")
-
-        pipeline_steps.append(deduplicator)
+            pipeline_steps.append(deduplicator)
+        elif dedup_algorithm == "exact":
+            print("Warning: ExactDedupFilter not available in this datatrove version. Using MinHash instead.")
+            deduplicator = MinhashDedupFilter(
+                threshold=self.config.get('minhash_threshold', 0.8),
+                store_fingerprints=True
+            )
+            pipeline_steps.append(deduplicator)
 
         # 5. Statistics collectors (optional)
-        if self.config.quality_filters.get('collect_stats', False):
+        if self.config.get('collect_stats', False):
             pipeline_steps.extend([
-                WordsCounter(),
-                CharsCounter()
+                TokenStats(),
+                WordStats()
             ])
 
         return pipeline_steps
@@ -140,10 +125,10 @@ class DatatrovePreprocessor:
         executor = LocalPipelineExecutor(
             pipeline=pipeline_steps,
             logging_dir=os.path.join(output_path, "logs"),
-            workers=self.config.num_workers if self.config.num_workers > 1 else 1
+            workers=self.config.get('num_workers', 1) if self.config.get('num_workers', 1) > 1 else 1
         )
 
-        print(f"📊 Running pipeline with {self.config.num_workers} workers...")
+        print(f"📊 Running pipeline with {self.config.get('num_workers', 1)} workers...")
         executor.run()
 
         # Load the processed dataset
@@ -157,7 +142,7 @@ class DatatrovePreprocessor:
             processed_dataset = self._load_from_datatrove_output(temp_output)
 
         # Clean up temporary files if needed
-        if self.config.quality_filters.get('cleanup_temp', True):
+        if self.config.get('cleanup_temp', True):
             import shutil
             try:
                 shutil.rmtree(temp_output)
@@ -206,29 +191,18 @@ class DatatrovePreprocessor:
         return Dataset.from_list(documents)
 
 
-def is_datatrove_available() -> bool:
-    """Check if datatrove is available for use."""
-    return DATATROVE_AVAILABLE
-
-
 def create_datatrove_example_config() -> Dict[str, Any]:
     """Create an example datatrove configuration."""
     return {
-        "datatrove": {
-            "enabled": True,
-            "deduplication_algorithm": "minhash",
-            "quality_filters": {
-                "min_length": 100,
-                "max_length": 100000,
-                "use_trafilatura": False,
-                "collect_stats": True,
-                "cleanup_temp": True
-            },
-            "distributed": False,
-            "streaming": True,
-            "num_workers": max(1, os.cpu_count() // 2),
-            "minhash_threshold": 0.8
-        }
+        "deduplication_algorithm": "minhash",
+        "min_length": 100,
+        "max_length": 100000,
+        "use_trafilatura": False,
+        "collect_stats": True,
+        "cleanup_temp": True,
+        "streaming": True,
+        "num_workers": max(1, os.cpu_count() // 2),
+        "minhash_threshold": 0.8
     }
 
 
