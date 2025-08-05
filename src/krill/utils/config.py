@@ -32,6 +32,11 @@ class KrillConfig(BaseModel):
     # The number of samples to include in each batch. This is the number of samples sent to
     # each GPU. Batch size per gpu = micro_batch_size * gradient_accumulation_steps
     micro_batch_size: int | None = Field(default=1)
+    
+    # Memory efficiency options for preprocessing
+    preprocess_chunk_size: int = Field(default=10000, description="Number of samples to process in each chunk")
+    preprocess_memory_efficient: bool = Field(default=False, description="Enable memory-efficient preprocessing")
+    preprocess_dedup_cache_dir: Optional[str] = Field(default=None, description="Directory for deduplication cache files")
 
 
 def load_config(path: str) -> KrillConfig:
