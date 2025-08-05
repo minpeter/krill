@@ -87,8 +87,8 @@ def _do_preprocess_standard(config: KrillConfig, monitor: MemoryMonitor):
 
 
 def _do_preprocess_memory_efficient(config: KrillConfig, monitor: MemoryMonitor):
-    """Truly memory-efficient preprocessing implementation using streaming."""
-    from krill.utils.streaming_dataset import process_datasets_streaming
+    """Memory-efficient preprocessing implementation with optimized dataset combination."""
+    from krill.utils.streaming_dataset import process_datasets_streaming_optimized
     
     # Set up deduplication cache directory
     if config.preprocess_dedup_cache_dir:
@@ -97,16 +97,16 @@ def _do_preprocess_memory_efficient(config: KrillConfig, monitor: MemoryMonitor)
     else:
         cache_dir = None  # Will use temporary directory
 
-    print(f"🌊 Using streaming preprocessing with batch size {config.preprocess_chunk_size}")
-    print("   This approach never loads the entire dataset into memory")
+    print(f"🌊 Using optimized memory-efficient preprocessing with batch size {config.preprocess_chunk_size}")
+    print("   This approach minimizes memory usage during dataset combination")
     
     # Load tokenizer
     tokenizer = AutoTokenizer.from_pretrained(config.hub_tokenizer_id)
     
-    monitor.report_current("before streaming processing")
+    monitor.report_current("before optimized processing")
     
-    # Process datasets using true streaming approach
-    final_dataset, stats = process_datasets_streaming(
+    # Process datasets using optimized approach
+    final_dataset, stats = process_datasets_streaming_optimized(
         dataset_configs=config.datasets,
         batch_size=config.preprocess_chunk_size,
         cache_dir=cache_dir,
@@ -117,7 +117,7 @@ def _do_preprocess_memory_efficient(config: KrillConfig, monitor: MemoryMonitor)
         shard_size=config.preprocess_save_shard_size
     )
     
-    monitor.report_current("after streaming processing")
+    monitor.report_current("after optimized processing")
 
     if len(final_dataset) == 0:
         print("No samples remaining after processing. Exiting.")
@@ -130,7 +130,7 @@ def _do_preprocess_memory_efficient(config: KrillConfig, monitor: MemoryMonitor)
                            tokenizer=tokenizer,
                            show_example_rows_limit=1)
 
-    # Use stats from streaming processing
+    # Use stats from optimized processing
     filter_dropped_tokens = stats['total_tokens_dropped_length']
     packing_dropped_tokens = stats['total_tokens_dropped_packing']
 
@@ -162,7 +162,7 @@ def _do_preprocess_memory_efficient(config: KrillConfig, monitor: MemoryMonitor)
         )
 
     print(
-        f"🦐 Krill: Finished streaming preprocessing. Data saved to {config.dataset_prepared_path}"
+        f"🦐 Krill: Finished optimized preprocessing. Data saved to {config.dataset_prepared_path}"
     )
 
 

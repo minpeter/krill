@@ -68,7 +68,11 @@ def load_and_prepare_raw_datasets(dataset_configs):
     for ds_cfg in dataset_configs:
         print(
             f"1. Loading dataset {ds_cfg.path} columns={getattr(ds_cfg, 'text_column', 'text')} split={ds_cfg.split}...")
-        ds = load_dataset(ds_cfg.path, split=ds_cfg.split)
+        # Handle datasets that require a config name
+        if hasattr(ds_cfg, 'name') and ds_cfg.name:
+            ds = load_dataset(ds_cfg.path, ds_cfg.name, split=ds_cfg.split)
+        else:
+            ds = load_dataset(ds_cfg.path, split=ds_cfg.split)
         if getattr(ds_cfg, 'text_column', 'text') != 'text':
             ds = ds.rename_column(ds_cfg.text_column, 'text')
         # Drop all columns except 'text'
