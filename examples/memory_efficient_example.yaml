@@ -13,12 +13,12 @@ dataset_prepared_min_length: 100
 # Memory efficiency settings (NEW FEATURES)
 preprocess_memory_efficient: true        # Enable memory-efficient mode
 preprocess_chunk_size: 5000              # Process in chunks of 5000 samples
-preprocess_dedup_cache_dir: ./cache/dedup # Persistent deduplication cache
+preprocess_dedup_cache_dir: ./artifacts/cache/dedup # Persistent deduplication cache
 
 # Dataset configuration
 datasets:
   - path: minpeter/fineweb-2-edu-korean
-    split: train[:10_000]
+    split: train[:100_000]
     text_column: text
 
 # Training configuration (not used during preprocessing)
