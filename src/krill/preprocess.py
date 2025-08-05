@@ -87,12 +87,8 @@ def _do_preprocess_standard(config: KrillConfig, monitor: MemoryMonitor):
 
 
 def _do_preprocess_memory_efficient(config: KrillConfig, monitor: MemoryMonitor):
-    """Memory-efficient preprocessing implementation."""
-    from krill.utils.memory_efficient_dataset import (
-        process_datasets_memory_efficient,
-        tokenize_in_chunks,
-        filter_by_length_memory_efficient
-    )
+    """Truly memory-efficient preprocessing implementation using streaming."""
+    from krill.utils.streaming_dataset import process_datasets_streaming
     
     # Set up deduplication cache directory
     if config.preprocess_dedup_cache_dir:
@@ -101,49 +97,73 @@ def _do_preprocess_memory_efficient(config: KrillConfig, monitor: MemoryMonitor)
     else:
         cache_dir = None  # Will use temporary directory
 
-    print(f"Processing datasets in chunks of {config.preprocess_chunk_size}")
+    print(f"🌊 Using streaming preprocessing with batch size {config.preprocess_chunk_size}")
+    print("   This approach never loads the entire dataset into memory")
     
-    # Load and prepare raw datasets in chunks
-    monitor.report_current("before chunked dataset processing")
-    raw_dataset = process_datasets_memory_efficient(
-        config.datasets, 
-        chunk_size=config.preprocess_chunk_size,
-        cache_dir=cache_dir
-    )
-    monitor.report_current("after chunked dataset processing")
-
-    if len(raw_dataset) == 0:
-        print("No samples remaining after filtering. Exiting.")
-        return
-
     # Load tokenizer
     tokenizer = AutoTokenizer.from_pretrained(config.hub_tokenizer_id)
-
-    # Tokenize in chunks
-    print(f"Tokenizing dataset in chunks...")
-    monitor.report_current("before chunked tokenization")
-    tokenized = tokenize_in_chunks(
-        raw_dataset, 
-        tokenizer, 
-        chunk_size=config.preprocess_chunk_size
+    
+    monitor.report_current("before streaming processing")
+    
+    # Process datasets using true streaming approach
+    final_dataset, stats = process_datasets_streaming(
+        dataset_configs=config.datasets,
+        batch_size=config.preprocess_chunk_size,
+        cache_dir=cache_dir,
+        tokenizer=tokenizer,
+        min_length=config.dataset_prepared_min_length,
+        sequence_len=config.sequence_len,
+        output_dir=config.dataset_prepared_path,
+        shard_size=config.preprocess_save_shard_size
     )
-    monitor.report_current("after chunked tokenization")
+    
+    monitor.report_current("after streaming processing")
 
-    # Filter by length in chunks
-    print(f"Filtering by minimum length ({config.dataset_prepared_min_length})...")
-    monitor.report_current("before chunked length filtering")
-    tokenized, filter_dropped_tokens = filter_by_length_memory_efficient(
-        tokenized, 
-        config.dataset_prepared_min_length,
-        chunk_size=config.preprocess_chunk_size
-    )
-    monitor.report_current("after chunked length filtering")
-
-    if len(tokenized) == 0:
-        print("No samples remaining after length filtering. Exiting.")
+    if len(final_dataset) == 0:
+        print("No samples remaining after processing. Exiting.")
         return
 
-    _pack_and_save_dataset(config, tokenized, filter_dropped_tokens, monitor)
+    # Report final results using the same format as standard mode
+    from krill.utils.inspect_dataset import inspect_pretrain_dataset
+    
+    inspect_pretrain_dataset(dataset=final_dataset,
+                           tokenizer=tokenizer,
+                           show_example_rows_limit=1)
+
+    # Use stats from streaming processing
+    filter_dropped_tokens = stats['total_tokens_dropped_length']
+    packing_dropped_tokens = stats['total_tokens_dropped_packing']
+
+    print(
+        f"\n\033[1;41;97mDropped {filter_dropped_tokens} tokens\033[0m during filtering (samples shorter than min_length={config.dataset_prepared_min_length})"
+    )
+    print(
+        f"\n\033[1;41;97mDropped {packing_dropped_tokens} tokens\033[0m from packing incomplete sequences"
+    )
+
+    print(f"\nOriginal dataset samples processed: {stats['total_samples_processed']:,}")
+    print(f"Final packed dataset rows: {len(final_dataset):,}")
+    total_tokens = sum(len(sample["input_ids"]) for sample in final_dataset)
+    print(
+        f"Total tokens in packed dataset: \033[45;97m{total_tokens / 1_000_000_000:.3f}B\033[0m")
+
+    # Check for any samples that do not match the expected context length
+    wrong_indices = [
+        i for i, sample in enumerate(final_dataset)
+        if len(sample["input_ids"]) != config.sequence_len
+    ]
+    if wrong_indices:
+        print(f"\033[1;41;97mWarning: Found {len(wrong_indices)} samples "
+              f"with incorrect length (expected {config.sequence_len}). "
+              f"Indices: {wrong_indices[:10]}{'...' if len(wrong_indices) > 10 else ''}\033[0m")
+    else:
+        print(
+            "\033[1;32mAll packed samples have the correct context length.\033[0m"
+        )
+
+    print(
+        f"🦐 Krill: Finished streaming preprocessing. Data saved to {config.dataset_prepared_path}"
+    )
 
 
 def _pack_and_save_dataset(config: KrillConfig, tokenized, filter_dropped_tokens, monitor: MemoryMonitor):
