@@ -192,9 +192,22 @@ def _pack_and_save_dataset(config: KrillConfig, tokenized, filter_dropped_tokens
                 last_dropped_chunk_length = last_len
                 packed = packed.select(list(range(len(packed) - 1)))
 
-    # Save
+    # Save with controlled shard size to reduce memory usage
     monitor.report_current("before saving")
-    packed.save_to_disk(config.dataset_prepared_path)
+    
+    # Use smaller shard size and multiprocessing in memory-efficient mode to reduce memory spike during save
+    if config.preprocess_memory_efficient:
+        print(f"Saving dataset with shard size: {config.preprocess_save_shard_size} (memory-efficient mode)")
+        # Use multiprocessing to distribute save workload
+        num_proc = min(4, max(1, os.cpu_count() // 2))
+        packed.save_to_disk(
+            config.dataset_prepared_path, 
+            max_shard_size=config.preprocess_save_shard_size,
+            num_proc=num_proc
+        )
+    else:
+        packed.save_to_disk(config.dataset_prepared_path)
+    
     monitor.report_current("after saving")
 
     inspect_pretrain_dataset(dataset=packed,

@@ -46,6 +46,36 @@ The memory-efficient preprocessing mode addresses these issues through:
 - Uses configurable batch size for `pack_dataset()` instead of full dataset size
 - Reduces memory pressure during sequence packing
 
+### 6. Memory-Optimized Dataset Saving
+
+- Uses smaller shard sizes (default: 200MB) to reduce memory spike during save
+- Employs multiprocessing to distribute save workload
+- Prevents the large memory spike that occurs when saving big datasets
+
+## Understanding Memory Spikes
+
+Even in memory-efficient mode, you may notice a memory spike during the final save operation. This happens because:
+
+1. **Dataset Accumulation**: While processing is chunked, the final packed dataset is still accumulated in memory
+2. **Save Operation**: The `save_to_disk` operation loads the entire dataset to write it to disk
+3. **Shard Creation**: Creating dataset shards requires additional temporary memory
+
+### Memory Spike Mitigation
+
+The memory-efficient mode includes several optimizations to reduce the save spike:
+
+- **Smaller Shards**: Uses `preprocess_save_shard_size` (default: 200MB) to create smaller files
+- **Multiprocessing**: Distributes save workload across multiple CPU cores  
+- **Optimized Batch Size**: Uses smaller batch sizes throughout the pipeline
+
+**Configuration for Maximum Memory Efficiency:**
+
+```yaml
+preprocess_memory_efficient: true
+preprocess_chunk_size: 1000          # Smaller chunks for very constrained memory
+preprocess_save_shard_size: 50MB     # Very small shards to minimize save spike
+```
+
 ## Configuration
 
 Add these options to your YAML configuration to enable memory-efficient preprocessing:
@@ -56,6 +86,9 @@ preprocess_memory_efficient: true
 
 # Set chunk size (default: 10000)
 preprocess_chunk_size: 5000
+
+# Control memory spike during save (default: 200MB)
+preprocess_save_shard_size: 100MB
 
 # Optional: Set persistent cache directory for deduplication
 preprocess_dedup_cache_dir: ./cache/dedup
