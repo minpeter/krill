@@ -7,7 +7,7 @@ sequence_len: 1024
 dataset_prepared_path: ./artifacts/pico-1k
 dataset_prepared_min_length: 150
 
-preprocess_memory_efficient: true
+preprocess_memory_efficient: false
 preprocess_chunk_size: 200
 
 datasets:
