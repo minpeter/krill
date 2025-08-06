@@ -10,7 +10,7 @@ memory_efficient_preprocess: false
 
 datasets:
   - path: minpeter/fineweb-2-edu-korean
-    split: train[:10_000]
+    split: train[:100_000]
     text_column: text
 
 # krill train

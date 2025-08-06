@@ -5,19 +5,25 @@ from trl import pack_dataset
 
 from krill.utils.config import KrillConfig
 from krill.utils.dataset_utils import inspect_pretrain_dataset
+from krill.utils.memory_monitor import MemoryMonitor
 
 
 def do_preprocess(config: KrillConfig):
     """Preprocesses the data based on the loaded Config object."""
     print("🦐 Krill: Starting preprocessing...")
 
+    monitor = MemoryMonitor()
+    monitor.start_monitoring()
+
     if config.memory_efficient_preprocess:
-        _memory_efficient_preprocess(config)
+        _do_preprocess_memory_efficient(config, monitor)
     else:
-        _standard_preprocess(config)
+        _do_preprocess_standard(config, monitor)
+
+    monitor.report_final()
 
 
-def _memory_efficient_preprocess(config: KrillConfig):
+def _do_preprocess_memory_efficient(config: KrillConfig, monitor: MemoryMonitor):
     """Preprocesses the data in a memory-efficient way."""
 
     raise NotImplementedError(
@@ -26,13 +32,18 @@ def _memory_efficient_preprocess(config: KrillConfig):
     )
 
 
-def _standard_preprocess(config: KrillConfig):
+def _do_preprocess_standard(config: KrillConfig, monitor: MemoryMonitor):
     # Prepare output directory
     os.makedirs(config.dataset_prepared_path, exist_ok=True)
 
     # Load and prepare raw datasets
     from krill.utils.dataset_utils import load_and_prepare_raw_datasets
+
+    monitor.report_current("before loading datasets")
+
     raw_dataset = load_and_prepare_raw_datasets(config.datasets)
+
+    monitor.report_current("after loading datasets")
 
     # Load tokenizer
     tokenizer = AutoTokenizer.from_pretrained(config.hub_tokenizer_id)
@@ -56,13 +67,16 @@ def _standard_preprocess(config: KrillConfig):
         f"Total CPUs: {os.cpu_count()}, Using {num_proc} processes for mapping."
     )
 
+    monitor.report_current("before tokenization")
     tokenized = raw_dataset.map(tokenize_function,
                                 batched=True,
                                 num_proc=num_proc,
                                 remove_columns=raw_dataset.column_names,
                                 desc="Tokenizing")
+    monitor.report_current("after tokenization")
 
     # Filter by min_length
+    monitor.report_current("before filtering")
     lengths = tokenized["input_ids"].map(len) if hasattr(
         tokenized["input_ids"],
         'map') else [len(x) for x in tokenized["input_ids"]]
@@ -75,13 +89,18 @@ def _standard_preprocess(config: KrillConfig):
     total_tokens_after_filter = sum(lengths[i] for i in selected)
     filter_dropped_tokens = total_tokens_before_filter - total_tokens_after_filter
     tokenized = tokenized.select(selected)
+    monitor.report_current("after filtering")
 
     # Pack sequences
+    monitor.report_current("before packing")
     print(f"Packing into sequences of length {config.sequence_len}...", end="")
     packed = pack_dataset(tokenized,
                           seq_length=config.sequence_len,
                           strategy="wrapped",
                           map_kwargs={"batch_size": len(tokenized)})
+
+    monitor.report_current("after packing")
+
     # Drop incomplete last chunk and record dropped tokens
     last_dropped_chunk_length = 0
     if len(packed) > 0:
@@ -90,8 +109,9 @@ def _standard_preprocess(config: KrillConfig):
             last_dropped_chunk_length = last_len
             packed = packed.select(list(range(len(packed) - 1)))
 
-    # Save
+    monitor.report_current("before saving")
     packed.save_to_disk(config.dataset_prepared_path)
+    monitor.report_current("after saving")
 
     inspect_pretrain_dataset(dataset=packed,
                              tokenizer=tokenizer,
