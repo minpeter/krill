@@ -3,7 +3,7 @@
 
 # Tokenizer configuration
 vocab_size: 48000
-hub_tokenizer_id: pretraining/fw2-edu-kr-tokenizer-48k
+hub_tokenizer_id: minpeter/fw2-edu-kr-tokenizer-48k
 
 # Preprocessing configuration
 sequence_len: 2048
@@ -11,7 +11,7 @@ dataset_prepared_path: ./artifacts/dataset_memory_efficient
 dataset_prepared_min_length: 100
 
 # Memory efficiency settings (simplified approach)
-preprocess_memory_efficient: true # Enable memory-efficient mode
+preprocess_memory_efficient: false # Enable memory-efficient mode
 preprocess_chunk_size: 500 # Process only 500 samples in memory at a time
 
 # Dataset configuration
