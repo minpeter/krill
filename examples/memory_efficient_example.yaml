@@ -17,7 +17,7 @@ preprocess_chunk_size: 500 # Process only 500 samples in memory at a time
 # Dataset configuration
 datasets:
   - path: minpeter/fineweb-2-edu-korean
-    split: train[:5_000]
+    split: train[:1_000]  # Use much smaller dataset for testing
     text_column: text
 
 # Training configuration (not used during preprocessing)
