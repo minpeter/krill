@@ -26,6 +26,8 @@ def do_preprocess(config: KrillConfig):
 def _do_preprocess_memory_efficient(config: KrillConfig, monitor: MemoryMonitor):
     """Preprocesses the data in a memory-efficient way."""
 
+    print(f"{config.preprocess_chunk_size=}, {config.preprocess_memory_efficient=}")
+
     raise NotImplementedError(
         "Memory-efficient preprocessing is not yet implemented. "
         "Please use the standard preprocessing method for now."
