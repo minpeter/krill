@@ -6,7 +6,8 @@ hub_tokenizer_id: pretraining/fw2-edu-kr-tokenizer-48k
 sequence_len: 1024
 dataset_prepared_path: ./artifacts/webtext-1k
 dataset_prepared_min_length: 150
-memory_efficient_preprocess: false
+preprocess_memory_efficient: false
+preprocess_chunk_size: 500
 
 datasets:
   - path: minpeter/fineweb-2-edu-korean

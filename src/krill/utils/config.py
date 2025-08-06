@@ -18,7 +18,12 @@ class KrillConfig(BaseModel):
     hub_tokenizer_id: str
     dataset_prepared_path: str
     dataset_prepared_min_length: int = Field(default=150)
-    memory_efficient_preprocess: bool = Field(default=False)
+
+    # Memory efficiency options for preprocessing
+    preprocess_chunk_size: int = Field(
+        default=500, description="Number of samples to process in each chunk for memory-efficient mode")
+    preprocess_memory_efficient: bool = Field(
+        default=False, description="Enable memory-efficient preprocessing")
 
     datasets: List[DatasetConfig]
     hub_model_id: str

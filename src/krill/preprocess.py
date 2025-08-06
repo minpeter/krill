@@ -15,7 +15,7 @@ def do_preprocess(config: KrillConfig):
     monitor = MemoryMonitor()
     monitor.start_monitoring()
 
-    if config.memory_efficient_preprocess:
+    if config.preprocess_memory_efficient:
         _do_preprocess_memory_efficient(config, monitor)
     else:
         _do_preprocess_standard(config, monitor)
