@@ -4,7 +4,7 @@ from transformers import AutoTokenizer
 from trl import pack_dataset
 
 from krill.utils.config import KrillConfig
-from krill.utils.inspect_dataset import inspect_pretrain_dataset
+from krill.utils.dataset_utils import inspect_pretrain_dataset
 
 
 def do_preprocess(config: KrillConfig):
