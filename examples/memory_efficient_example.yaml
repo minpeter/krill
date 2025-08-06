@@ -11,12 +11,13 @@ dataset_prepared_path: ./artifacts/dataset_memory_efficient
 dataset_prepared_min_length: 100
 
 # Memory efficiency settings (simplified approach)
-preprocess_memory_efficient: false # Enable memory-efficient mode
+preprocess_memory_efficient: true # Enable memory-efficient mode
 preprocess_chunk_size: 500 # Process only 500 samples in memory at a time
 
 # Dataset configuration
 datasets:
-  - path: minpeter/fineweb-2-edu-korean
+  - path: wikitext
+    name: wikitext-2-raw-v1
     split: train[:1_000]  # Use much smaller dataset for testing
     text_column: text
 
