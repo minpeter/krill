@@ -2,7 +2,7 @@
 Simple memory monitoring utility for preprocessing.
 """
 
-# import psutil
+import psutil
 import os
 from contextlib import contextmanager
 
@@ -11,14 +11,13 @@ class MemoryMonitor:
     """Simple memory usage monitor."""
     
     def __init__(self):
-        # self.process = psutil.Process(os.getpid())
+        self.process = psutil.Process(os.getpid())
         self.peak_memory = 0
         self.start_memory = 0
     
     def get_memory_mb(self):
         """Get current memory usage in MB."""
-        # return self.process.memory_info().rss / 1024 / 1024
-        return 100.0  # Mock value for testing
+        return self.process.memory_info().rss / 1024 / 1024
     
     def start_monitoring(self):
         """Start monitoring memory."""
