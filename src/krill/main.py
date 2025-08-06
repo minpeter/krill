@@ -62,6 +62,15 @@ def preprocess(config: str):
     cfg = load_config(config)
     do_preprocess(cfg)
 
+@cli.command()
+@click.argument("config", type=click.Path(exists=True))
+def validate(config: str):
+    """Validate the preprocessed dataset sequences match expected length."""
+    from krill.utils.config import load_config
+    from krill.preprocess import validate_preprocessed
+    cfg = load_config(config)
+    validate_preprocessed(cfg)
+
 
 @cli.command()
 @click.argument("config", type=click.Path(exists=True))
