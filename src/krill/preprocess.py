@@ -11,6 +11,22 @@ def do_preprocess(config: KrillConfig):
     """Preprocesses the data based on the loaded Config object."""
     print("🦐 Krill: Starting preprocessing...")
 
+    if config.memory_efficient_preprocess:
+        _memory_efficient_preprocess(config)
+    else:
+        _standard_preprocess(config)
+
+
+def _memory_efficient_preprocess(config: KrillConfig):
+    """Preprocesses the data in a memory-efficient way."""
+
+    raise NotImplementedError(
+        "Memory-efficient preprocessing is not yet implemented. "
+        "Please use the standard preprocessing method for now."
+    )
+
+
+def _standard_preprocess(config: KrillConfig):
     # Prepare output directory
     os.makedirs(config.dataset_prepared_path, exist_ok=True)
 

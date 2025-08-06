@@ -6,6 +6,7 @@ hub_tokenizer_id: minpeter/webtext-tokenizer-32k
 sequence_len: 1024
 dataset_prepared_path: ./artifacts/webtext-1k
 dataset_prepared_min_length: 150
+memory_efficient_preprocess: false
 
 datasets:
   - path: HAERAE-HUB/KOREAN-WEBTEXT

@@ -18,6 +18,8 @@ class KrillConfig(BaseModel):
     hub_tokenizer_id: str
     dataset_prepared_path: str
     dataset_prepared_min_length: int = Field(default=150)
+    memory_efficient_preprocess: bool = Field(default=False)
+
     datasets: List[DatasetConfig]
     hub_model_id: str
     output_dir: str
