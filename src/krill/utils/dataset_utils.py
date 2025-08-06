@@ -59,6 +59,35 @@ def is_high_quality_and_unique(example):
     return True
 
 
+def _load_raw_datasets_streaming(dataset_configs):
+    """
+    Load datasets in streaming mode for memory-efficient processing.
+    Yields individual examples after cleaning and filtering.
+    """
+    seen_texts = set()
+    
+    for ds_cfg in dataset_configs:
+        print(
+            f"1. Loading dataset {ds_cfg.path} columns={getattr(ds_cfg, 'text_column', 'text')} split={ds_cfg.split}...")
+        
+        # Load dataset in streaming mode
+        ds = load_dataset(ds_cfg.path, split=ds_cfg.split, streaming=True)
+        
+        # Process examples one by one
+        for example in ds:
+            # Get text from correct column
+            text_column = getattr(ds_cfg, 'text_column', 'text')
+            text = example.get(text_column, '')
+            
+            # Clean text
+            cleaned_text = clean_text(text)
+            
+            # Apply quality filtering and deduplication
+            if len(cleaned_text) >= 100 and cleaned_text not in seen_texts:
+                seen_texts.add(cleaned_text)
+                yield {'text': cleaned_text}
+
+
 def load_and_prepare_raw_datasets(dataset_configs):
     """
     Load raw datasets, rename text column to 'text', drop other columns, concatenate,

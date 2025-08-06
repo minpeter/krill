@@ -55,11 +55,15 @@ def train(ctx, config: str):
 
 @cli.command()
 @click.argument("config", type=click.Path(exists=True))
-def preprocess(config: str):
+@click.option("--memory-efficient", is_flag=True, default=False, help="Enable memory-efficient preprocessing")
+def preprocess(config: str, memory_efficient: bool):
     """Preprocess a dataset."""
     from krill.utils.config import load_config
     from krill.preprocess import do_preprocess
     cfg = load_config(config)
+    # Override config with CLI flag if provided
+    if memory_efficient:
+        cfg.preprocess_memory_efficient = True
     do_preprocess(cfg)
 
 
