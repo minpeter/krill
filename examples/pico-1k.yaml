@@ -1,24 +1,23 @@
 # krill train-tokenizer
-vocab_size: 48000
-hub_tokenizer_id: pretraining/fw2-edu-kr-tokenizer-48k
+vocab_size: 32000
+hub_tokenizer_id: pretraining/TinyFinewebEdu-ko-tokenizer-32k
 
 # krill preprocess
 sequence_len: 1024
-dataset_prepared_path: ./artifacts/webtext-1k
+dataset_prepared_path: ./artifacts/pico-1k
 dataset_prepared_min_length: 150
 
 preprocess_memory_efficient: true
-preprocess_chunk_size: 500
+preprocess_chunk_size: 200
 
 datasets:
-  - path: minpeter/fineweb-2-edu-korean
-    split: train[:100_000]
+  - path: blueapple8259/TinyFinewebEdu-ko
+    split: train
     text_column: text
 
 # krill train
-hub_model_id: minpeter/webtext-1k-pico
-output_dir: ./artifacts/models/webtext-1k-pico
-
+hub_model_id: pretraining/pico-1k
+output_dir: ./artifacts/models/pico-1k
 num_epochs: 1
 learning_rate: 1e-3
 weight_decay: 0.01
