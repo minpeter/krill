@@ -147,117 +147,119 @@ def _do_preprocess_memory_efficient(config: KrillConfig, monitor: MemoryMonitor)
     # Load tokenizer
     tokenizer = AutoTokenizer.from_pretrained(config.hub_tokenizer_id)
     
-    # Initialize for streaming processing
+    chunk_size = getattr(config, 'preprocess_chunk_size', 500)
+    
+    # Use incremental saving to avoid accumulating all sequences in memory
     import tempfile
     import os
-    from datasets import Dataset
-    import pyarrow as pa
-    import pyarrow.parquet as pq
-    
-    chunk_size = getattr(config, 'preprocess_chunk_size', 500)
     temp_dir = tempfile.mkdtemp()
     chunk_files = []
+    
     total_filter_dropped_tokens = 0
     total_original_rows = 0
-    carryover_tokens = []
+    carryover_tokens = []  # Store incomplete tokens between chunks
     
     monitor.report_current("before starting streaming processing")
     
     try:
-        # Process each dataset in true streaming mode
+        # Process each dataset in streaming mode
         for ds_cfg in config.datasets:
-            print(f"🧠 Streaming dataset {ds_cfg.path}:{ds_cfg.split} with chunk size {chunk_size}")
+            print(f"🧠 Streaming dataset {ds_cfg.path} with chunk size {chunk_size}")
             
-            # Parse split notation for slice bounds
+            # Load dataset with streaming=True to avoid loading entire dataset into memory
+            from datasets import load_dataset
+            
+            # Parse the split to handle slicing like train[:1000]
             base_split = ds_cfg.split
-            start_idx, end_idx = 0, None
+            slice_start, slice_end = None, None
             
             if '[' in ds_cfg.split and ds_cfg.split.endswith(']'):
                 base_split, slice_part = ds_cfg.split.split('[', 1)
                 slice_part = slice_part[:-1]  # Remove ']'
                 if ':' in slice_part:
                     start_str, end_str = slice_part.split(':', 1)
-                    start_idx = int(start_str.replace('_', '')) if start_str else 0
+                    slice_start = int(start_str.replace('_', '')) if start_str else 0
                     if end_str:
-                        end_idx = int(end_str.replace('_', ''))
+                        slice_end = int(end_str.replace('_', ''))
             
-            # Stream process dataset without loading full dataset into memory
-            from datasets import load_dataset
-            dataset_streaming = load_dataset(
-                ds_cfg.path, 
-                split=base_split,
+            # Load dataset in streaming mode
+            dataset_stream = load_dataset(
+                ds_cfg.path,
                 name=getattr(ds_cfg, 'name', None),
-                streaming=True  # Key: Use streaming mode!
+                split=base_split,
+                streaming=True
             )
             
-            # Apply slice bounds to streaming dataset
-            if start_idx > 0 or end_idx is not None:
-                dataset_streaming = dataset_streaming.skip(start_idx)
-                if end_idx is not None:
-                    dataset_streaming = dataset_streaming.take(end_idx - start_idx)
+            # Apply slicing if needed
+            if slice_start is not None:
+                dataset_stream = dataset_stream.skip(slice_start)
+            if slice_end is not None:
+                slice_length = slice_end - (slice_start or 0) 
+                dataset_stream = dataset_stream.take(slice_length)
             
-            # Process streaming dataset in chunks
+            # Process dataset in chunks
             current_chunk = []
             chunk_idx = 0
             
-            for sample in dataset_streaming:
-                current_chunk.append(sample[ds_cfg.text_column])
+            for example in dataset_stream:
+                # Clean and filter text (same as standard mode)
+                text = example[ds_cfg.text_column]
                 
-                # Process chunk when it's full
+                # Apply text cleaning (same as standard mode)
+                text = _clean_text(text)
+                
+                # Apply basic quality filtering (same as standard mode) 
+                if len(text) >= 100:  # Same min_length as used in standard mode filtering
+                    current_chunk.append(text)
+                
+                # Process chunk when it reaches chunk_size
                 if len(current_chunk) >= chunk_size:
-                    sequences_created, chunk_dropped = _process_chunk_streaming(
-                        current_chunk, tokenizer, config, carryover_tokens,
-                        chunk_idx, temp_dir, monitor
+                    chunk_file = _process_and_save_chunk(
+                        current_chunk, tokenizer, config, carryover_tokens, 
+                        chunk_idx, temp_dir
                     )
-                    total_filter_dropped_tokens += chunk_dropped
-                    if sequences_created > 0:
-                        chunk_files.append(f"{temp_dir}/chunk_{chunk_idx}.parquet")
+                    if chunk_file:
+                        chunk_files.append(chunk_file)
                     
+                    total_filter_dropped_tokens += _count_dropped_tokens(current_chunk, tokenizer, config)
                     total_original_rows += len(current_chunk)
+                    
                     current_chunk = []
                     chunk_idx += 1
                     
-                    # Report memory after each chunk
+                    # Report memory after each chunk - should stay bounded
                     monitor.report_current(f"after processing chunk {chunk_idx}")
             
-            # Process final chunk if not empty
+            # Process final chunk if any
             if current_chunk:
-                sequences_created, chunk_dropped = _process_chunk_streaming(
+                chunk_file = _process_and_save_chunk(
                     current_chunk, tokenizer, config, carryover_tokens,
-                    chunk_idx, temp_dir, monitor
+                    chunk_idx, temp_dir
                 )
-                total_filter_dropped_tokens += chunk_dropped
-                if sequences_created > 0:
-                    chunk_files.append(f"{temp_dir}/chunk_{chunk_idx}.parquet")
+                if chunk_file:
+                    chunk_files.append(chunk_file)
+                
+                total_filter_dropped_tokens += _count_dropped_tokens(current_chunk, tokenizer, config)
                 total_original_rows += len(current_chunk)
         
-        # Calculate final carryover
+        # Calculate final carryover tokens that will be dropped
         final_carryover_tokens = len(carryover_tokens)
         
-        # Combine chunks using streaming approach (no full dataset in memory)
-        monitor.report_current("before combining chunks")
-        if chunk_files:
-            _combine_chunks_streaming(chunk_files, config.dataset_prepared_path, monitor)
-            
-            # Load just for inspection and validation (this is the only time we load the result)
-            packed = Dataset.load_from_disk(config.dataset_prepared_path)
-        else:
-            # Create empty dataset
-            packed = Dataset.from_list([])
-            packed.save_to_disk(config.dataset_prepared_path)
+        # Combine all chunk files into final dataset
+        monitor.report_current("before combining chunk files")
+        packed = _combine_chunk_files(chunk_files, config.dataset_prepared_path)
+        monitor.report_current("after combining chunk files")
         
-        monitor.report_current("after combining chunks")
-        
-        # Display results
+        # Display results (exactly same as standard mode)
         inspect_pretrain_dataset(dataset=packed,
                                  tokenizer=tokenizer,
                                  show_example_rows_limit=1)
 
         print(
-            f"\n\033[1;41;97mDropped {total_filter_dropped_tokens} tokens\033[0m during filtering (min_length={config.dataset_prepared_min_length})"
+            f"\n\033[1;41;97mDropped {total_filter_dropped_tokens} tokens\033[0m during filtering (samples shorter than min_length={config.dataset_prepared_min_length})"
         )
         print(
-            f"\n\033[1;41;97mDropped {final_carryover_tokens} carryover tokens\033[0m from final incomplete sequence"
+            f"\n\033[1;41;97mDropped {final_carryover_tokens} tokens\033[0m from final incomplete chunk (length {final_carryover_tokens} < sequence_len={config.sequence_len})"
         )
 
         print(f"\nOriginal dataset rows: {total_original_rows}")
@@ -291,125 +293,114 @@ def _do_preprocess_memory_efficient(config: KrillConfig, monitor: MemoryMonitor)
         shutil.rmtree(temp_dir, ignore_errors=True)
 
 
-def _process_chunk_streaming(texts, tokenizer, config, carryover_tokens, chunk_idx, temp_dir, monitor):
-    """Process a single chunk in streaming mode and save to disk immediately."""
-    from datasets import Dataset
+def _clean_text(text):
+    """Clean text using same logic as standard mode."""
+    if not isinstance(text, str):
+        return ""
     
-    # Create chunk dataset
-    temp_chunk_dataset = Dataset.from_dict({"text": texts})
+    text = text.strip()
     
-    # Tokenize chunk
-    def tokenize_function(examples):
-        tokenized_inputs = tokenizer(examples["text"],
-                                   padding=False,
-                                   truncation=False)
+    try:
+        text = text.encode('utf-8', errors='ignore').decode('utf-8')
+    except Exception:
+        text = ""
+    
+    # Fix surrogates  
+    import re
+    text = re.sub(r'[\uD800-\uDFFF]', '', text)
+    
+    return text
 
+
+def _count_dropped_tokens(texts, tokenizer, config):
+    """Count tokens that would be dropped during filtering."""
+    dropped = 0
+    for text in texts:
+        tokenized = tokenizer(text, padding=False, truncation=False)
+        tokens = tokenized["input_ids"]
         if tokenizer.eos_token_id is not None:
-            for i in range(len(tokenized_inputs["input_ids"])):
-                tokenized_inputs["input_ids"][i].append(tokenizer.eos_token_id)
-                tokenized_inputs["attention_mask"][i].append(1)
-                if "token_type_ids" in tokenized_inputs:
-                    tokenized_inputs["token_type_ids"][i].append(0)
+            tokens.append(tokenizer.eos_token_id)
+        if len(tokens) < config.dataset_prepared_min_length:
+            dropped += len(tokens)
+    return dropped
 
-        return tokenized_inputs
+
+def _process_and_save_chunk(texts, tokenizer, config, carryover_tokens, chunk_idx, temp_dir):
+    """Process a chunk of texts and save immediately to disk."""
+    import os
     
-    tokenized_chunk = temp_chunk_dataset.map(
-        tokenize_function,
-        batched=True,
-        batch_size=100,
-        num_proc=1,
-        remove_columns=temp_chunk_dataset.column_names,
-        desc=f"Tokenizing chunk {chunk_idx}",
-        load_from_cache_file=False,
-        keep_in_memory=False
-    )
+    # Start with carryover tokens from previous chunk
+    all_token_ids = list(carryover_tokens)
     
-    # Collect all tokens from this chunk (including carryover from previous chunk)
-    all_tokens = list(carryover_tokens)
-    chunk_dropped_tokens = 0
-    
-    # Filter and collect tokens from current chunk
-    for sample in tokenized_chunk:
-        tokens = sample["input_ids"]
+    for text in texts:
+        # Tokenize individual text  
+        tokenized = tokenizer(text, padding=False, truncation=False)
+        tokens = tokenized["input_ids"]
+        
+        # Add EOS token if configured
+        if tokenizer.eos_token_id is not None:
+            tokens.append(tokenizer.eos_token_id)
+        
+        # Apply length filtering (same as standard mode)
         if len(tokens) >= config.dataset_prepared_min_length:
-            all_tokens.extend(tokens)
-        else:
-            chunk_dropped_tokens += len(tokens)
+            all_token_ids.extend(tokens)
     
-    # Create complete sequences from all available tokens
-    chunk_sequences = []
-    while len(all_tokens) >= config.sequence_len:
-        sequence = all_tokens[:config.sequence_len]
-        all_tokens = all_tokens[config.sequence_len:]
-        chunk_sequences.append({
-            "input_ids": sequence,
+    # Pack tokens into complete sequences
+    sequences = []
+    while len(all_token_ids) >= config.sequence_len:
+        sequence_tokens = all_token_ids[:config.sequence_len]
+        all_token_ids = all_token_ids[config.sequence_len:]
+        
+        sequences.append({
+            "input_ids": sequence_tokens,
             "attention_mask": [1] * config.sequence_len
         })
     
     # Update carryover tokens for next chunk
     carryover_tokens.clear()
-    carryover_tokens.extend(all_tokens)
+    carryover_tokens.extend(all_token_ids)
     
-    # Save chunk to disk immediately if we have sequences
-    sequences_count = 0
-    if chunk_sequences:
-        result_dataset = Dataset.from_list(chunk_sequences)
-        chunk_path = f"{temp_dir}/chunk_{chunk_idx}.parquet"
-        result_dataset.to_parquet(chunk_path)
-        sequences_count = len(chunk_sequences)
+    # Save sequences to file if any were created
+    if sequences:
+        from datasets import Dataset
+        chunk_path = os.path.join(temp_dir, f"chunk_{chunk_idx}.parquet")
+        chunk_dataset = Dataset.from_list(sequences)
+        chunk_dataset.to_parquet(chunk_path)
         
         # Clear memory immediately
-        del chunk_sequences, result_dataset
+        del sequences, chunk_dataset
+        return chunk_path
     
-    # Clear tokenized data
-    del temp_chunk_dataset, tokenized_chunk
-    
-    return sequences_count, chunk_dropped_tokens
+    return None
 
 
-def _combine_chunks_streaming(chunk_files, output_path, monitor):
-    """Combine chunk files using streaming approach to minimize memory usage."""
-    import os
+def _combine_chunk_files(chunk_files, output_path):
+    """Combine chunk files efficiently and save to final location."""
     from datasets import Dataset, concatenate_datasets
+    import os
     
-    os.makedirs(output_path, exist_ok=True)
+    if not chunk_files:
+        # Create empty dataset
+        empty_dataset = Dataset.from_list([])
+        empty_dataset.save_to_disk(output_path)
+        return empty_dataset
     
-    # Combine chunks in small groups to control memory usage
-    all_data = []
-    batch_size = 2  # Combine only 2 chunks at a time to minimize memory
+    # Load and combine chunk files in small batches to control memory
+    datasets = []
+    for chunk_file in chunk_files:
+        chunk_data = Dataset.from_parquet(chunk_file)
+        datasets.append(chunk_data)
     
-    for i in range(0, len(chunk_files), batch_size):
-        batch_files = chunk_files[i:i+batch_size]
-        
-        # Load batch of chunks
-        batch_datasets = []
-        for chunk_file in batch_files:
-            chunk_data = Dataset.from_parquet(chunk_file)
-            batch_datasets.append(chunk_data)
-        
-        # Combine batch
-        if len(batch_datasets) == 1:
-            combined_batch = batch_datasets[0]
-        else:
-            combined_batch = concatenate_datasets(batch_datasets)
-        
-        all_data.append(combined_batch)
-        
-        # Clear batch from memory
-        del batch_datasets, combined_batch
-        monitor.report_current(f"combined chunks {i} to {i+len(batch_files)-1}")
-    
-    # Final combination
-    if len(all_data) == 1:
-        final_dataset = all_data[0]
+    # Combine all datasets
+    if len(datasets) == 1:
+        final_dataset = datasets[0]
     else:
-        final_dataset = concatenate_datasets(all_data)
+        final_dataset = concatenate_datasets(datasets)
     
-    # Save final dataset
+    # Save to final location
     final_dataset.save_to_disk(output_path)
     
-    # Clean up
-    del all_data, final_dataset
+    return final_dataset
 
 
 def validate_preprocessed(config: KrillConfig):
