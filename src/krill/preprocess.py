@@ -269,7 +269,6 @@ def _pack_and_save_dataset(config: KrillConfig, tokenized, filter_dropped_tokens
                           strategy="wrapped")
     monitor.report_current("after packing")
 
-
     monitor.report_current("before saving")
     packed.save_to_disk(config.dataset_prepared_path)
     monitor.report_current("after saving")
@@ -277,6 +276,11 @@ def _pack_and_save_dataset(config: KrillConfig, tokenized, filter_dropped_tokens
     inspect_pretrain_dataset(dataset=packed,
                              tokenizer=tokenizer,
                              show_example_rows_limit=1)
+    # Compute length of final incomplete chunk dropped
+    total_tokens_after_filter = sum(
+        len(sample["input_ids"]) for sample in tokenized)
+    last_dropped_chunk_length = total_tokens_after_filter - \
+        len(packed) * config.sequence_len
 
     print(
         f"\n\033[1;41;97mDropped {filter_dropped_tokens} tokens\033[0m during filtering (samples shorter than min_length={config.dataset_prepared_min_length})"
@@ -320,17 +324,39 @@ def _pack_and_save_dataset(config: KrillConfig, tokenized, filter_dropped_tokens
     )
     # Validation removed; use separate validate_preprocessed() function.
 
+
 def validate_preprocessed(config: KrillConfig):
     """Validate that all packed sequences match the expected sequence length."""
     import sys
-    from datasets import load_from_disk
-    ds = load_from_disk(config.dataset_prepared_path)
+    import os
+    from datasets import load_from_disk, load_dataset
+    # Load dataset: from disk for standard mode, from streaming arrow file for memory-efficient mode
     seq_len = config.sequence_len
-    wrong_indices = [i for i, sample in enumerate(ds)
-                     if len(sample.get("input_ids", [])) != seq_len]
-    if wrong_indices:
-        print(f"\033[1;41;97mValidation failed: Found {len(wrong_indices)} samples "
-              f"with incorrect length (expected {seq_len}). Indices: {wrong_indices}\033[0m")
-        sys.exit(1)
+    if getattr(config, 'preprocess_memory_efficient', False):
+        # streaming validation: arrow file contains flat tokens
+        arrow_file = os.path.join(
+            config.dataset_prepared_path, 'streaming.arrow')
+        stream = load_dataset('arrow', data_files=arrow_file,
+                              split='train', streaming=True)
+        token_count = 0
+        for _ in stream:
+            token_count += 1
+        # check divisibility by sequence length
+        if token_count % seq_len != 0:
+            print(
+                f"\033[1;41;97mValidation failed: Total tokens {token_count} not divisible by sequence length {seq_len}\033[0m")
+            sys.exit(1)
+        seq_count = token_count // seq_len
+        print(
+            f"\033[1;32mAll {seq_count} sequences validated with length {seq_len} ({token_count} tokens total).\033[0m")
     else:
-        print(f"\033[1;32mAll {len(ds)} samples have correct length {seq_len}.\033[0m")
+        ds = load_from_disk(config.dataset_prepared_path)
+        wrong_indices = [i for i, sample in enumerate(ds)
+                         if len(sample.get("input_ids", [])) != seq_len]
+        if wrong_indices:
+            print(f"\033[1;41;97mValidation failed: Found {len(wrong_indices)} samples "
+                  f"with incorrect length (expected {seq_len}). Indices: {wrong_indices}\033[0m")
+            sys.exit(1)
+        else:
+            print(
+                f"\033[1;32mAll {len(ds)} samples have correct length {seq_len}.\033[0m")
