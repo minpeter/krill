@@ -16,7 +16,7 @@ authors = [
     { name = "minpeter", email = "kali2005611@gmail.com" },
 ]
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.10"
 dependencies = [
     "click>=8.2.1",
     "datasets>=4.0.0",
