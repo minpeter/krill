@@ -1,6 +1,6 @@
 # krill train-tokenizer
-vocab_size: 32000
-hub_tokenizer_id: minpeter/webtext-tokenizer-32k
+vocab_size: 48000
+hub_tokenizer_id: pretraining/fw2-edu-kr-tokenizer-48k
 
 # krill preprocess
 sequence_len: 1024
@@ -9,7 +9,7 @@ dataset_prepared_min_length: 150
 memory_efficient_preprocess: false
 
 datasets:
-  - path: HAERAE-HUB/KOREAN-WEBTEXT
+  - path: minpeter/fineweb-2-edu-korean
     split: train[:10_000]
     text_column: text
 
