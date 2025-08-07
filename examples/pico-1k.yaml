@@ -1,6 +1,6 @@
 # krill train-tokenizer
 vocab_size: 32000
-hub_tokenizer_id: pretraining/TinyFinewebEdu-ko-tokenizer-32k
+hub_tokenizer_id: pretraining/pico-tokenizer-32k
 
 # krill preprocess
 sequence_len: 1024
@@ -8,7 +8,7 @@ dataset_prepared_path: ./artifacts/pico-1k
 dataset_prepared_min_length: 150
 
 datasets:
-  - path: blueapple8259/TinyFinewebEdu-ko
+  - path: pretraining/tiny-korean-100k
     split: train
     text_column: text
 
