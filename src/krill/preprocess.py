@@ -27,8 +27,8 @@ def _do_preprocess_memory_efficient(config: KrillConfig, monitor: MemoryMonitor)
     """
     Preprocesses the data in a truly memory-efficient way.
     
-    This processes chunks through tokenization and filtering, accumulates tokens in a rolling buffer,
-    and packs only when sufficient tokens are available. Uses incremental storage to avoid memory accumulation.
+    This processes each chunk through the complete pipeline independently (tokenize -> filter -> pack -> save)
+    and uses incremental Apache Arrow storage to avoid any memory accumulation between chunks.
     """
     print(f"🔄 Memory-efficient streaming mode: {config.preprocess_chunk_size=}")
 
@@ -64,31 +64,30 @@ def _do_preprocess_memory_efficient(config: KrillConfig, monitor: MemoryMonitor)
 
     monitor.report_current("before chunk processing")
     
-    # Process chunks and accumulate tokens in a memory-efficient way
+    # Process chunks completely independently with incremental storage
     from datasets import Dataset, concatenate_datasets
     from trl import pack_dataset
     import tempfile
     import shutil
+    import pyarrow as pa
+    import pyarrow.parquet as pq
     
     # Statistics tracking
     total_tokens_before_filter = 0
     total_tokens_after_filter = 0
     total_original_rows = 0
     
-    # Rolling buffer for efficient packing
-    rolling_buffer = {"input_ids": [], "attention_mask": []}
-    buffer_token_count = 0
-    pack_threshold = config.sequence_len * 50  # Pack when we have ~50 sequences worth of tokens
-    
-    # Temporary directory for incremental saves
-    temp_chunks_dir = os.path.join(config.dataset_prepared_path + "_temp_chunks")
-    os.makedirs(temp_chunks_dir, exist_ok=True)
+    # Use Apache Arrow for incremental storage
+    parquet_files = []
     
     # Process in chunks
     chunk_size = config.preprocess_chunk_size
     current_chunk = []
     chunk_count = 0
-    packed_chunk_count = 0
+    
+    # Create output directory for incremental files
+    incremental_dir = os.path.join(config.dataset_prepared_path + "_incremental")
+    os.makedirs(incremental_dir, exist_ok=True)
     
     try:
         for example in dataset_iterator:
@@ -96,33 +95,21 @@ def _do_preprocess_memory_efficient(config: KrillConfig, monitor: MemoryMonitor)
             total_original_rows += 1
             
             if len(current_chunk) >= chunk_size:
-                # Process this chunk for tokenization and filtering
-                chunk_stats = _process_chunk_for_tokens(
-                    current_chunk, chunk_count, tokenize_function, config, monitor
+                # Process this chunk completely and save immediately
+                chunk_stats = _process_chunk_completely_independent(
+                    current_chunk, chunk_count, tokenize_function, config, 
+                    incremental_dir, monitor
                 )
                 
                 # Update statistics
                 total_tokens_before_filter += chunk_stats["tokens_before_filter"]
                 total_tokens_after_filter += chunk_stats["tokens_after_filter"]
                 
-                # Add filtered tokens to rolling buffer
-                if chunk_stats["filtered_input_ids"]:
-                    rolling_buffer["input_ids"].extend(chunk_stats["filtered_input_ids"])
-                    rolling_buffer["attention_mask"].extend(chunk_stats["filtered_attention_masks"])
-                    buffer_token_count += chunk_stats["tokens_after_filter"]
+                # Track parquet file if chunk produced data
+                if chunk_stats["parquet_file"]:
+                    parquet_files.append(chunk_stats["parquet_file"])
                 
-                # Pack and save when buffer is large enough
-                if buffer_token_count >= pack_threshold:
-                    packed_stats = _pack_and_save_buffer(
-                        rolling_buffer, config, temp_chunks_dir, packed_chunk_count, monitor
-                    )
-                    
-                    # Reset buffer but keep some tokens for continuity
-                    _reset_buffer_with_remainder(rolling_buffer, config.sequence_len)
-                    buffer_token_count = sum(len(ids) for ids in rolling_buffer["input_ids"])
-                    packed_chunk_count += 1
-                
-                # Clear chunk data immediately
+                # Clear chunk data immediately - this is key for memory efficiency
                 current_chunk = []
                 chunk_count += 1
                 
@@ -132,32 +119,25 @@ def _do_preprocess_memory_efficient(config: KrillConfig, monitor: MemoryMonitor)
         
         # Process final chunk if any
         if current_chunk:
-            chunk_stats = _process_chunk_for_tokens(
-                current_chunk, chunk_count, tokenize_function, config, monitor, is_final=True
+            chunk_stats = _process_chunk_completely_independent(
+                current_chunk, chunk_count, tokenize_function, config,
+                incremental_dir, monitor, is_final=True
             )
             
             # Update statistics
             total_tokens_before_filter += chunk_stats["tokens_before_filter"]
             total_tokens_after_filter += chunk_stats["tokens_after_filter"]
             
-            # Add to buffer
-            if chunk_stats["filtered_input_ids"]:
-                rolling_buffer["input_ids"].extend(chunk_stats["filtered_input_ids"])
-                rolling_buffer["attention_mask"].extend(chunk_stats["filtered_attention_masks"])
-                buffer_token_count += chunk_stats["tokens_after_filter"]
-
-        # Pack any remaining tokens in buffer
-        if rolling_buffer["input_ids"]:
-            _pack_and_save_buffer(
-                rolling_buffer, config, temp_chunks_dir, packed_chunk_count, monitor
-            )
+            # Track parquet file if chunk produced data
+            if chunk_stats["parquet_file"]:
+                parquet_files.append(chunk_stats["parquet_file"])
 
         monitor.report_current("after all chunk processing")
 
-        # Combine all processed chunks into final dataset
-        monitor.report_current("before combining chunks")
-        final_dataset = _combine_processed_chunks(temp_chunks_dir, config, monitor)
-        monitor.report_current("after combining chunks")
+        # Combine parquet files into final dataset using memory-efficient concatenation
+        monitor.report_current("before combining parquet files")
+        final_dataset = _combine_parquet_files_efficiently(parquet_files, monitor)
+        monitor.report_current("after combining parquet files")
 
         # Final cleanup and save
         monitor.report_current("before final save")
@@ -213,9 +193,107 @@ def _do_preprocess_memory_efficient(config: KrillConfig, monitor: MemoryMonitor)
         )
         
     finally:
-        # Cleanup temporary directory
-        if os.path.exists(temp_chunks_dir):
-            shutil.rmtree(temp_chunks_dir)
+        # Cleanup incremental directory
+        if os.path.exists(incremental_dir):
+            shutil.rmtree(incremental_dir)
+
+
+def _process_chunk_completely_independent(chunk_data, chunk_idx, tokenize_function, config, output_dir, monitor, is_final=False):
+    """
+    Process a single chunk through the complete pipeline independently and save as Parquet.
+    This ensures no memory accumulation between chunks.
+    """
+    from datasets import Dataset
+    from trl import pack_dataset
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+    
+    chunk_name = f"final_chunk" if is_final else f"chunk_{chunk_idx:04d}"
+    
+    # Create dataset from chunk
+    chunk_dataset = Dataset.from_list(chunk_data)
+    
+    # Tokenize chunk
+    tokenized_chunk = chunk_dataset.map(tokenize_function,
+                                      batched=True,
+                                      remove_columns=chunk_dataset.column_names,
+                                      desc=f"Tokenizing {chunk_name}")
+    
+    # Filter by min_length
+    lengths = [len(x) for x in tokenized_chunk["input_ids"]]
+    chunk_tokens_before_filter = sum(lengths)
+    
+    # Select valid samples 
+    valid_indices = [i for i, length in enumerate(lengths) if length >= config.dataset_prepared_min_length]
+    
+    parquet_file = None
+    chunk_tokens_after_filter = 0
+    
+    if valid_indices:
+        filtered_chunk = tokenized_chunk.select(valid_indices)
+        chunk_tokens_after_filter = sum(len(filtered_chunk[i]["input_ids"]) for i in range(len(filtered_chunk)))
+        
+        # Pack the filtered chunk
+        packed_chunk = pack_dataset(filtered_chunk,
+                                  seq_length=config.sequence_len,
+                                  strategy="wrapped",
+                                  map_kwargs={"batch_size": len(filtered_chunk)})
+        
+        # Save packed chunk as Parquet (memory-efficient format)
+        if len(packed_chunk) > 0:
+            parquet_file = os.path.join(output_dir, f"{chunk_name}.parquet")
+            
+            # Convert to Arrow table and save as Parquet
+            arrow_table = packed_chunk.data.table
+            pq.write_table(arrow_table, parquet_file, compression='snappy')
+        
+        # Clean up intermediate data immediately
+        del chunk_dataset
+        del tokenized_chunk
+        del filtered_chunk
+        del packed_chunk
+        
+    else:
+        # No valid samples in this chunk
+        # Clean up intermediate data
+        del chunk_dataset
+        del tokenized_chunk
+    
+    return {
+        "tokens_before_filter": chunk_tokens_before_filter,
+        "tokens_after_filter": chunk_tokens_after_filter,
+        "parquet_file": parquet_file
+    }
+
+
+def _combine_parquet_files_efficiently(parquet_files, monitor):
+    """
+    Combine Parquet files into a single dataset using memory-efficient Arrow operations.
+    """
+    from datasets import Dataset
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+    
+    if not parquet_files:
+        return Dataset.from_dict({"input_ids": [], "attention_mask": []})
+    
+    # Read all parquet files and concatenate using Arrow (memory efficient)
+    arrow_tables = []
+    for pq_file in parquet_files:
+        if os.path.exists(pq_file):
+            table = pq.read_table(pq_file)
+            arrow_tables.append(table)
+    
+    if not arrow_tables:
+        return Dataset.from_dict({"input_ids": [], "attention_mask": []})
+    elif len(arrow_tables) == 1:
+        combined_table = arrow_tables[0]
+    else:
+        # Concatenate Arrow tables (very memory efficient)
+        combined_table = pa.concat_tables(arrow_tables)
+    
+    # Convert back to Dataset
+    return Dataset(combined_table)
 
 
 def _process_chunk_for_tokens(chunk_data, chunk_idx, tokenize_function, config, monitor, is_final=False):
