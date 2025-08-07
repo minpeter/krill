@@ -24,9 +24,13 @@ def do_preprocess(config: KrillConfig):
 
 
 def _do_preprocess_memory_efficient(config: KrillConfig, monitor: MemoryMonitor):
-    """Preprocesses the data in a memory-efficient way."""
-
-    print(f"{config.preprocess_chunk_size=}, {config.preprocess_memory_efficient=}")
+    """
+    Preprocesses the data in a truly memory-efficient way.
+    
+    This processes chunks through tokenization and filtering, accumulates tokens in a rolling buffer,
+    and packs only when sufficient tokens are available. Uses incremental storage to avoid memory accumulation.
+    """
+    print(f"🔄 Memory-efficient streaming mode: {config.preprocess_chunk_size=}")
 
     # Prepare output directory
     os.makedirs(config.dataset_prepared_path, exist_ok=True)
@@ -58,159 +62,379 @@ def _do_preprocess_memory_efficient(config: KrillConfig, monitor: MemoryMonitor)
 
         return tokenized_inputs
 
-    monitor.report_current("before tokenization")
+    monitor.report_current("before chunk processing")
     
-    # Process all data, but in smaller chunks to keep peak memory lower
-    from datasets import Dataset
+    # Process chunks and accumulate tokens in a memory-efficient way
+    from datasets import Dataset, concatenate_datasets
     from trl import pack_dataset
+    import tempfile
+    import shutil
     
+    # Statistics tracking
     total_tokens_before_filter = 0
     total_tokens_after_filter = 0
     total_original_rows = 0
     
-    # Collect all filtered tokenized data efficiently
-    all_input_ids = []
-    all_attention_masks = []
+    # Rolling buffer for efficient packing
+    rolling_buffer = {"input_ids": [], "attention_mask": []}
+    buffer_token_count = 0
+    pack_threshold = config.sequence_len * 50  # Pack when we have ~50 sequences worth of tokens
     
-    # Process in smaller chunks to avoid peak memory spikes
+    # Temporary directory for incremental saves
+    temp_chunks_dir = os.path.join(config.dataset_prepared_path + "_temp_chunks")
+    os.makedirs(temp_chunks_dir, exist_ok=True)
+    
+    # Process in chunks
     chunk_size = config.preprocess_chunk_size
     current_chunk = []
     chunk_count = 0
+    packed_chunk_count = 0
     
-    for example in dataset_iterator:
-        current_chunk.append(example)
-        total_original_rows += 1
-        
-        if len(current_chunk) >= chunk_size:
-            # Process this chunk
-            chunk_dataset = Dataset.from_list(current_chunk)
+    try:
+        for example in dataset_iterator:
+            current_chunk.append(example)
+            total_original_rows += 1
             
-            # Tokenize chunk
-            tokenized_chunk = chunk_dataset.map(tokenize_function,
-                                              batched=True,
-                                              remove_columns=chunk_dataset.column_names,
-                                              desc=f"Tokenizing chunk {chunk_count}")
+            if len(current_chunk) >= chunk_size:
+                # Process this chunk for tokenization and filtering
+                chunk_stats = _process_chunk_for_tokens(
+                    current_chunk, chunk_count, tokenize_function, config, monitor
+                )
+                
+                # Update statistics
+                total_tokens_before_filter += chunk_stats["tokens_before_filter"]
+                total_tokens_after_filter += chunk_stats["tokens_after_filter"]
+                
+                # Add filtered tokens to rolling buffer
+                if chunk_stats["filtered_input_ids"]:
+                    rolling_buffer["input_ids"].extend(chunk_stats["filtered_input_ids"])
+                    rolling_buffer["attention_mask"].extend(chunk_stats["filtered_attention_masks"])
+                    buffer_token_count += chunk_stats["tokens_after_filter"]
+                
+                # Pack and save when buffer is large enough
+                if buffer_token_count >= pack_threshold:
+                    packed_stats = _pack_and_save_buffer(
+                        rolling_buffer, config, temp_chunks_dir, packed_chunk_count, monitor
+                    )
+                    
+                    # Reset buffer but keep some tokens for continuity
+                    _reset_buffer_with_remainder(rolling_buffer, config.sequence_len)
+                    buffer_token_count = sum(len(ids) for ids in rolling_buffer["input_ids"])
+                    packed_chunk_count += 1
+                
+                # Clear chunk data immediately
+                current_chunk = []
+                chunk_count += 1
+                
+                # Report memory usage occasionally
+                if chunk_count % 10 == 0:
+                    monitor.report_current(f"after processing chunk {chunk_count}")
+        
+        # Process final chunk if any
+        if current_chunk:
+            chunk_stats = _process_chunk_for_tokens(
+                current_chunk, chunk_count, tokenize_function, config, monitor, is_final=True
+            )
             
-            # Filter by min_length and collect results immediately
-            lengths = [len(x) for x in tokenized_chunk["input_ids"]]
-            chunk_tokens_before = sum(lengths)
-            total_tokens_before_filter += chunk_tokens_before
+            # Update statistics
+            total_tokens_before_filter += chunk_stats["tokens_before_filter"]
+            total_tokens_after_filter += chunk_stats["tokens_after_filter"]
             
-            for i, length in enumerate(lengths):
-                if length >= config.dataset_prepared_min_length:
-                    all_input_ids.append(tokenized_chunk[i]["input_ids"])
-                    all_attention_masks.append(tokenized_chunk[i]["attention_mask"])
-                    total_tokens_after_filter += length
-            
-            # Clear intermediate data immediately to reduce memory
-            del tokenized_chunk
-            del chunk_dataset
-            current_chunk = []
-            chunk_count += 1
-            
-            # Report memory usage occasionally 
-            if chunk_count % 10 == 0:
-                monitor.report_current(f"after processing chunk {chunk_count}")
-    
-    # Process final chunk if any
-    if current_chunk:
-        chunk_dataset = Dataset.from_list(current_chunk)
-        
-        tokenized_chunk = chunk_dataset.map(tokenize_function,
-                                          batched=True,
-                                          remove_columns=chunk_dataset.column_names,
-                                          desc=f"Tokenizing final chunk")
-        
-        lengths = [len(x) for x in tokenized_chunk["input_ids"]]
-        chunk_tokens_before = sum(lengths)
-        total_tokens_before_filter += chunk_tokens_before
-        
-        for i, length in enumerate(lengths):
-            if length >= config.dataset_prepared_min_length:
-                all_input_ids.append(tokenized_chunk[i]["input_ids"])
-                all_attention_masks.append(tokenized_chunk[i]["attention_mask"])
-                total_tokens_after_filter += length
-        
-        del tokenized_chunk
-        del chunk_dataset
+            # Add to buffer
+            if chunk_stats["filtered_input_ids"]:
+                rolling_buffer["input_ids"].extend(chunk_stats["filtered_input_ids"])
+                rolling_buffer["attention_mask"].extend(chunk_stats["filtered_attention_masks"])
+                buffer_token_count += chunk_stats["tokens_after_filter"]
 
-    monitor.report_current("after tokenization")
-
-    # Now create the combined dataset for packing
-    monitor.report_current("before packing")
-    if all_input_ids:
-        combined_tokenized = Dataset.from_dict({
-            "input_ids": all_input_ids,
-            "attention_mask": all_attention_masks
-        })
-        
-        # Pack the combined dataset (this should produce identical results to standard mode)
-        print(f"Packing into sequences of length {config.sequence_len}...", end="")
-        packed = pack_dataset(combined_tokenized,
-                              seq_length=config.sequence_len,
-                              strategy="wrapped",
-                              map_kwargs={"batch_size": len(combined_tokenized)})
-        
-        # Clear the intermediate data
-        del combined_tokenized
-        del all_input_ids
-        del all_attention_masks
-    else:
-        # Create empty dataset with correct schema
-        packed = Dataset.from_dict({"input_ids": [], "attention_mask": []})
-
-    monitor.report_current("after packing")
-
-    # Drop incomplete last chunk and record dropped tokens
-    last_dropped_chunk_length = 0
-    if len(packed) > 0:
-        last_len = len(packed[-1]["input_ids"])
-        if last_len < config.sequence_len:
-            last_dropped_chunk_length = last_len
-            packed = packed.select(list(range(len(packed) - 1)))
-
-    monitor.report_current("before saving")
-    packed.save_to_disk(config.dataset_prepared_path)
-    monitor.report_current("after saving")
-
-    # Compute filter dropped tokens
-    filter_dropped_tokens = total_tokens_before_filter - total_tokens_after_filter
-
-    inspect_pretrain_dataset(dataset=packed,
-                             tokenizer=tokenizer,
-                             show_example_rows_limit=1)
-
-    print(
-        f"\n\033[1;41;97mDropped {filter_dropped_tokens} tokens\033[0m during filtering (samples shorter than min_length={config.dataset_prepared_min_length})"
-    )
-    print(
-        f"\n\033[1;41;97mDropped {last_dropped_chunk_length} tokens\033[0m from final incomplete chunk (length {last_dropped_chunk_length} < sequence_len={config.sequence_len})"
-    )
-
-    print(f"\nOriginal dataset rows: {total_original_rows}")
-    print(f"Packed dataset rows: {len(packed)}")
-    total_tokens = sum(len(sample["input_ids"]) for sample in packed)
-    print(
-        f"Total tokens in packed dataset: \033[45;97m{total_tokens / 1_000_000_000:.3f}B\033[0m")
-
-    if len(packed) > 0:
-        # Check for any samples that do not match the expected context length
-        wrong_indices = [
-            i for i, sample in enumerate(packed)
-            if len(sample["input_ids"]) != config.sequence_len
-        ]
-        if wrong_indices:
-            print(f"\033[1;41;97mWarning: Found {len(wrong_indices)} samples "
-                  f"with incorrect length (expected {config.sequence_len}). "
-                  f"Indices: {wrong_indices}\033[0m")
-        else:
-            print(
-                "\033[1;32mAll packed samples have the correct context length.\033[0m"
+        # Pack any remaining tokens in buffer
+        if rolling_buffer["input_ids"]:
+            _pack_and_save_buffer(
+                rolling_buffer, config, temp_chunks_dir, packed_chunk_count, monitor
             )
 
-    print(
-        f"🦐 Krill: Finished. Packed data saved to {config.dataset_prepared_path}"
-    )
+        monitor.report_current("after all chunk processing")
+
+        # Combine all processed chunks into final dataset
+        monitor.report_current("before combining chunks")
+        final_dataset = _combine_processed_chunks(temp_chunks_dir, config, monitor)
+        monitor.report_current("after combining chunks")
+
+        # Final cleanup and save
+        monitor.report_current("before final save")
+        
+        # Handle incomplete final chunk
+        last_dropped_chunk_length = 0
+        if len(final_dataset) > 0:
+            last_len = len(final_dataset[-1]["input_ids"])
+            if last_len < config.sequence_len:
+                last_dropped_chunk_length = last_len
+                final_dataset = final_dataset.select(list(range(len(final_dataset) - 1)))
+
+        final_dataset.save_to_disk(config.dataset_prepared_path)
+        monitor.report_current("after final save")
+
+        # Compute filter dropped tokens
+        filter_dropped_tokens = total_tokens_before_filter - total_tokens_after_filter
+
+        inspect_pretrain_dataset(dataset=final_dataset,
+                                 tokenizer=tokenizer,
+                                 show_example_rows_limit=1)
+
+        print(
+            f"\n\033[1;41;97mDropped {filter_dropped_tokens} tokens\033[0m during filtering (samples shorter than min_length={config.dataset_prepared_min_length})"
+        )
+        print(
+            f"\n\033[1;41;97mDropped {last_dropped_chunk_length} tokens\033[0m from final incomplete chunk (length {last_dropped_chunk_length} < sequence_len={config.sequence_len})"
+        )
+
+        print(f"\nOriginal dataset rows: {total_original_rows}")
+        print(f"Packed dataset rows: {len(final_dataset)}")
+        total_tokens = sum(len(sample["input_ids"]) for sample in final_dataset)
+        print(
+            f"Total tokens in packed dataset: \033[45;97m{total_tokens / 1_000_000_000:.3f}B\033[0m")
+
+        if len(final_dataset) > 0:
+            # Check for any samples that do not match the expected context length
+            wrong_indices = [
+                i for i, sample in enumerate(final_dataset)
+                if len(sample["input_ids"]) != config.sequence_len
+            ]
+            if wrong_indices:
+                print(f"\033[1;41;97mWarning: Found {len(wrong_indices)} samples "
+                      f"with incorrect length (expected {config.sequence_len}). "
+                      f"Indices: {wrong_indices}\033[0m")
+            else:
+                print(
+                    "\033[1;32mAll packed samples have the correct context length.\033[0m"
+                )
+
+        print(
+            f"🦐 Krill: Finished memory-efficient processing. Data saved to {config.dataset_prepared_path}"
+        )
+        
+    finally:
+        # Cleanup temporary directory
+        if os.path.exists(temp_chunks_dir):
+            shutil.rmtree(temp_chunks_dir)
+
+
+def _process_chunk_for_tokens(chunk_data, chunk_idx, tokenize_function, config, monitor, is_final=False):
+    """
+    Process a single chunk for tokenization and filtering only.
+    Returns filtered tokens without packing.
+    """
+    from datasets import Dataset
+    
+    chunk_name = f"final_chunk" if is_final else f"chunk_{chunk_idx:04d}"
+    
+    # Create dataset from chunk
+    chunk_dataset = Dataset.from_list(chunk_data)
+    
+    # Tokenize chunk
+    tokenized_chunk = chunk_dataset.map(tokenize_function,
+                                      batched=True,
+                                      remove_columns=chunk_dataset.column_names,
+                                      desc=f"Tokenizing {chunk_name}")
+    
+    # Filter by min_length and extract tokens
+    lengths = [len(x) for x in tokenized_chunk["input_ids"]]
+    chunk_tokens_before_filter = sum(lengths)
+    
+    # Extract valid samples
+    filtered_input_ids = []
+    filtered_attention_masks = []
+    chunk_tokens_after_filter = 0
+    
+    for i, length in enumerate(lengths):
+        if length >= config.dataset_prepared_min_length:
+            filtered_input_ids.append(tokenized_chunk[i]["input_ids"])
+            filtered_attention_masks.append(tokenized_chunk[i]["attention_mask"])
+            chunk_tokens_after_filter += length
+    
+    # Clean up intermediate data immediately
+    del chunk_dataset
+    del tokenized_chunk
+    
+    return {
+        "tokens_before_filter": chunk_tokens_before_filter,
+        "tokens_after_filter": chunk_tokens_after_filter,
+        "filtered_input_ids": filtered_input_ids,
+        "filtered_attention_masks": filtered_attention_masks
+    }
+
+
+def _pack_and_save_buffer(rolling_buffer, config, temp_dir, packed_chunk_idx, monitor):
+    """
+    Pack the current buffer and save it to disk.
+    """
+    from datasets import Dataset
+    from trl import pack_dataset
+    
+    if not rolling_buffer["input_ids"]:
+        return {"packed_samples": 0, "packed_tokens": 0}
+    
+    # Create dataset from buffer
+    buffer_dataset = Dataset.from_dict(rolling_buffer)
+    
+    # Pack the buffer
+    packed_chunk = pack_dataset(buffer_dataset,
+                              seq_length=config.sequence_len,
+                              strategy="wrapped",
+                              map_kwargs={"batch_size": len(buffer_dataset)})
+    
+    # Save packed chunk to temporary location
+    chunk_save_path = os.path.join(temp_dir, f"packed_{packed_chunk_idx:04d}")
+    packed_chunk.save_to_disk(chunk_save_path)
+    
+    # Calculate statistics
+    packed_samples = len(packed_chunk)
+    packed_tokens = sum(len(sample["input_ids"]) for sample in packed_chunk)
+    
+    # Clean up
+    del buffer_dataset
+    del packed_chunk
+    
+    return {
+        "packed_samples": packed_samples,
+        "packed_tokens": packed_tokens
+    }
+
+
+def _reset_buffer_with_remainder(rolling_buffer, sequence_len):
+    """
+    Reset buffer but keep some tokens to maintain continuity.
+    Keep the last few sequences worth of tokens.
+    """
+    total_tokens = sum(len(ids) for ids in rolling_buffer["input_ids"])
+    keep_tokens = sequence_len * 2  # Keep 2 sequences worth of tokens
+    
+    if total_tokens <= keep_tokens:
+        # Keep everything if buffer is small
+        return
+    
+    # Find the point to cut at
+    accumulated = 0
+    cut_point = len(rolling_buffer["input_ids"])
+    
+    for i in range(len(rolling_buffer["input_ids"]) - 1, -1, -1):
+        accumulated += len(rolling_buffer["input_ids"][i])
+        if accumulated >= keep_tokens:
+            cut_point = i
+            break
+    
+    # Keep only the last portion
+    rolling_buffer["input_ids"] = rolling_buffer["input_ids"][cut_point:]
+    rolling_buffer["attention_mask"] = rolling_buffer["attention_mask"][cut_point:]
+
+
+def _process_chunk_independently(chunk_data, chunk_idx, tokenize_function, config, temp_dir, monitor, is_final=False):
+    """
+    Process a single chunk through the complete pipeline: tokenize -> filter -> pack -> save.
+    Returns statistics about the processed chunk.
+    """
+    from datasets import Dataset
+    from trl import pack_dataset
+    
+    chunk_name = f"final_chunk" if is_final else f"chunk_{chunk_idx:04d}"
+    
+    # Create dataset from chunk
+    chunk_dataset = Dataset.from_list(chunk_data)
+    
+    # Tokenize chunk
+    tokenized_chunk = chunk_dataset.map(tokenize_function,
+                                      batched=True,
+                                      remove_columns=chunk_dataset.column_names,
+                                      desc=f"Tokenizing {chunk_name}")
+    
+    # Filter by min_length
+    lengths = [len(x) for x in tokenized_chunk["input_ids"]]
+    chunk_tokens_before_filter = sum(lengths)
+    
+    # Select valid samples 
+    valid_indices = [i for i, length in enumerate(lengths) if length >= config.dataset_prepared_min_length]
+    
+    if valid_indices:
+        filtered_chunk = tokenized_chunk.select(valid_indices)
+        chunk_tokens_after_filter = sum(len(filtered_chunk[i]["input_ids"]) for i in range(len(filtered_chunk)))
+        
+        # Pack the filtered chunk
+        packed_chunk = pack_dataset(filtered_chunk,
+                                  seq_length=config.sequence_len,
+                                  strategy="wrapped",
+                                  map_kwargs={"batch_size": len(filtered_chunk)})
+        
+        # Save packed chunk to temporary location
+        chunk_save_path = os.path.join(temp_dir, chunk_name)
+        packed_chunk.save_to_disk(chunk_save_path)
+        
+        # Calculate statistics
+        packed_samples = len(packed_chunk)
+        packed_tokens = sum(len(sample["input_ids"]) for sample in packed_chunk)
+        
+        # Clean up intermediate data immediately
+        del chunk_dataset
+        del tokenized_chunk
+        del filtered_chunk
+        del packed_chunk
+        
+    else:
+        # No valid samples in this chunk
+        chunk_tokens_after_filter = 0
+        packed_samples = 0
+        packed_tokens = 0
+        
+        # Clean up intermediate data
+        del chunk_dataset
+        del tokenized_chunk
+    
+    return {
+        "tokens_before_filter": chunk_tokens_before_filter,
+        "tokens_after_filter": chunk_tokens_after_filter,
+        "packed_samples": packed_samples,
+        "packed_tokens": packed_tokens
+    }
+
+
+def _combine_processed_chunks(temp_chunks_dir, config, monitor):
+    """
+    Combine all processed chunks into a single dataset using concatenation.
+    """
+    from datasets import Dataset, concatenate_datasets
+    import os
+    
+    # Find all chunk directories
+    chunk_dirs = [d for d in os.listdir(temp_chunks_dir) 
+                  if os.path.isdir(os.path.join(temp_chunks_dir, d))]
+    chunk_dirs.sort()  # Ensure consistent ordering
+    
+    if not chunk_dirs:
+        # Return empty dataset if no chunks
+        return Dataset.from_dict({"input_ids": [], "attention_mask": []})
+    
+    # Load and concatenate all chunks
+    datasets_to_combine = []
+    for chunk_dir in chunk_dirs:
+        chunk_path = os.path.join(temp_chunks_dir, chunk_dir)
+        try:
+            chunk_dataset = Dataset.load_from_disk(chunk_path)
+            if len(chunk_dataset) > 0:  # Only add non-empty chunks
+                datasets_to_combine.append(chunk_dataset)
+        except Exception as e:
+            print(f"Warning: Failed to load chunk {chunk_dir}: {e}")
+    
+    if not datasets_to_combine:
+        return Dataset.from_dict({"input_ids": [], "attention_mask": []})
+    elif len(datasets_to_combine) == 1:
+        return datasets_to_combine[0]
+    else:
+        # Concatenate all datasets
+        combined = concatenate_datasets(datasets_to_combine)
+        
+        # Clean up loaded datasets from memory
+        for ds in datasets_to_combine:
+            del ds
+        
+        return combined
 
 
 def _do_preprocess_standard(config: KrillConfig, monitor: MemoryMonitor):
