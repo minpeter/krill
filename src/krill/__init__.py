@@ -2,7 +2,6 @@ import torch
 from platform import system as platform_system
 from transformers.utils.import_utils import _is_package_available
 from transformers import __version__ as transformers_version
-from triton import __version__ as triton_version
 import os
 
 __version__ = "2025.8.2"
@@ -51,11 +50,16 @@ def get_statistics() -> str:
         device_name = "CPU"
         extra = f" CPU cores: {cpu_count}."
 
+    triton_version = "N/A"
+    if _is_package_available("triton"):
+        import triton
+
+        triton_version = triton.__version__
+
     stats = (
         f"  /¯¯¯¯{chr(92)}   🦐 Krill {__version__}: A minimal pretraining trainer for LLMs — from scratch.\n"
         f" ( #|{chr(92)}_ü|  {device_name}. Num GPUs = {DEVICE_COUNT}. Max memory: {max_mem} GB. Platform: {PLATFORM_SYSTEM}.{extra}\n"
         f" ( #{chr(92)}  ƒƒ  Torch: {torch.__version__}. {gpu_stats_snippet} Triton: {triton_version}\n"
         f"  {chr(92)} #{chr(92)}     Transformers: {transformers_version}. Bfloat16 = {SUPPORTS_BFLOAT16}. FA2 = {HAS_FLASH_ATTENTION}\n"
-        f"  /|||{chr(92)}    Source code: https://github.com/minpeter/krill\n"
-    )
+        f"  /|||{chr(92)}    Source code: https://github.com/minpeter/krill\n")
     return stats
