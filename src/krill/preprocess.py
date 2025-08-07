@@ -14,27 +14,6 @@ def do_preprocess(config: KrillConfig):
 
     monitor = MemoryMonitor()
     monitor.start_monitoring()
-
-    if config.preprocess_memory_efficient:
-        _do_preprocess_memory_efficient(config, monitor)
-    else:
-        _do_preprocess_standard(config, monitor)
-
-    monitor.report_final()
-
-
-def _do_preprocess_memory_efficient(config: KrillConfig, monitor: MemoryMonitor):
-    """Preprocesses the data in a memory-efficient way."""
-
-    print(f"{config.preprocess_chunk_size=}, {config.preprocess_memory_efficient=}")
-
-    raise NotImplementedError(
-        "Memory-efficient preprocessing is not yet implemented. "
-        "Please use the standard preprocessing method for now."
-    )
-
-
-def _do_preprocess_standard(config: KrillConfig, monitor: MemoryMonitor):
     # Prepare output directory
     os.makedirs(config.dataset_prepared_path, exist_ok=True)
 
@@ -150,3 +129,5 @@ def _do_preprocess_standard(config: KrillConfig, monitor: MemoryMonitor):
     print(
         f"🦐 Krill: Finished. Packed data saved to {config.dataset_prepared_path}"
     )
+
+    monitor.report_final()
