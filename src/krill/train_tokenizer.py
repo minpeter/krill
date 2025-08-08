@@ -144,10 +144,10 @@ def do_train_tokenizer(config: KrillConfig):
     # Load and prepare dataset for tokenizer training
     dataset = load_and_prepare_raw_datasets(config.datasets)
     # Determine output directory for tokenizer
-    output_dir = f"./artifacts/tknz/{config.hub_tokenizer_id}"
+    output_dir = f"./artifacts/tknz/{config.tokenizer.hub_id}"
     train_and_save_huggingface_tokenizer(
         dataset=dataset,
         output_dir=output_dir,
-        target_vocab_size=config.vocab_size,
-        huggingface_hub_id=config.hub_tokenizer_id,
+        target_vocab_size=config.tokenizer.vocab_size,
+        huggingface_hub_id=config.tokenizer.hub_id,
     )

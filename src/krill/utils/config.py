@@ -12,14 +12,18 @@ class DatasetConfig(BaseModel):
     text_column: str = Field(default="text")
 
 
-class KrillConfig(BaseModel):
-    sequence_len: int
+class TokenizerConfig(BaseModel):
+    hub_id: str
     vocab_size: int = Field(default=32000)
-    hub_tokenizer_id: str
-    dataset_prepared_path: str
-    dataset_prepared_min_length: int = Field(default=150)
 
-    datasets: List[DatasetConfig]
+
+class PreprocessConfig(BaseModel):
+    prepared_path: str
+    sequence_len: int
+    min_length: int = Field(default=150)
+
+
+class TrainConfig(BaseModel):
     hub_model_id: str
     output_dir: str
     num_epochs: int = Field(default=1)
@@ -27,12 +31,16 @@ class KrillConfig(BaseModel):
     weight_decay: float = Field(default=0.01)
     optimizer: str = Field(default="muon")
     muon_implementation: str = Field(default="moonlight")
-
     model_config_name: str = Field(default="small")
     gradient_accumulation_steps: int = Field(default=1)
-    # The number of samples to include in each batch. This is the number of samples sent to
-    # each GPU. Batch size per gpu = micro_batch_size * gradient_accumulation_steps
     micro_batch_size: int | None = Field(default=1)
+
+
+class KrillConfig(BaseModel):
+    datasets: List[DatasetConfig]
+    tokenizer: TokenizerConfig
+    preprocess: PreprocessConfig
+    train: TrainConfig
 
 
 def load_config(path: str) -> KrillConfig:
