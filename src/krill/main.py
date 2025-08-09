@@ -1,9 +1,8 @@
 import click
 import subprocess
 import sys
-import os
 from krill import HAS_FLASH_ATTENTION, get_statistics
-from krill.utils import patch_optimized_env
+from krill.utils import patch_optimized_env, resolve_model_arg
 
 
 @click.group()
@@ -95,32 +94,29 @@ def echo():
 def inference(model: str, inspect: bool):
     """Run interactive inference on a text generation model or a YAML config file."""
 
-    model_id = model
-    # If a YAML config is passed, load hub_model_id
-    if os.path.isfile(model) and model.lower().endswith((".yaml", ".yml")):
-        print(f"⚓️ Loading config file: {model}...")
-        try:
-            import yaml
-            with open(model, "r") as f:
-                cfg = yaml.safe_load(f)
-            model_id = cfg.get("train", {}).get("hub_model_id")
-            if not model_id:
-                raise KeyError("hub_model_id not found in config")
-        except Exception as e:
-            print(f"Error loading config: {e}", file=sys.stderr)
-            sys.exit(1)
-        print(f"⚓️ Using model from config: {model_id}...")
+    try:
+        model_id = resolve_model_arg(model)
+    except Exception as e:
+        print(f"Error loading model: {e}", file=sys.stderr)
+        sys.exit(1)
 
-    # Delegate to core inference logic
     from krill.inference import do_inference
     do_inference(model_id, inspect)
 
 
 @cli.command()
-def evaluate():
+@click.argument("model", type=str)
+def evaluate(model: str):
     """Evaluate a model."""
 
-    print("IMPLEMENT ME: Evaluate command is not yet implemented.")
+    try:
+        model_id = resolve_model_arg(model)
+    except Exception as e:
+        print(f"Error loading model: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    from krill.evaluate import do_evaluate
+    do_evaluate(model_id)
 
 
 if __name__ == "__main__":

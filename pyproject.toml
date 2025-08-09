@@ -30,6 +30,7 @@ dependencies = [
     "muon-optimizer",
     "pytorch-optimizer>=3.7.0",
     "accelerate>=1.9.0",
+    "lm-eval[wandb]>=0.4.9",
 ]
 
 [project.optional-dependencies]
