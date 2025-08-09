@@ -1,27 +1,25 @@
-# krill train-tokenizer
-vocab_size: 32000
-hub_tokenizer_id: pretraining/pico-tokenizer-32k
-
-# krill preprocess
-sequence_len: 1024
-dataset_prepared_path: ./artifacts/pico-1k
-dataset_prepared_min_length: 150
-
 datasets:
   - path: pretraining/tiny-korean-100k
     split: train
     text_column: text
 
-# krill train
-hub_model_id: pretraining/pico-1k
-output_dir: ./artifacts/models/pico-1k
-num_epochs: 3
-learning_rate: 1e-3
-weight_decay: 0.01
-optimizer: muon
-muon_implementation: moonlight
+tokenizer:
+  hub_id: pretraining/pico-tokenizer-32k
+  vocab_size: 32000
 
-micro_batch_size: 2048
-gradient_accumulation_steps: 1
+preprocess:
+  prepared_path: ./artifacts/pico-1k
+  sequence_len: 1024
+  min_length: 150
 
-model_config_name: pico
+train:
+  hub_model_id: pretraining/pico-1k
+  output_dir: ./artifacts/models/pico-1k
+  num_epochs: 1
+  learning_rate: 1e-3
+  weight_decay: 0.01
+  optimizer: muon
+  muon_implementation: moonlight
+  micro_batch_size: 2048
+  gradient_accumulation_steps: 1
+  model_config_name: pico

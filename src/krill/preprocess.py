@@ -15,7 +15,7 @@ def do_preprocess(config: KrillConfig):
     monitor = MemoryMonitor()
     monitor.start_monitoring()
     # Prepare output directory
-    os.makedirs(config.dataset_prepared_path, exist_ok=True)
+    os.makedirs(config.preprocess.prepared_path, exist_ok=True)
 
     # Load and prepare raw datasets
     from krill.utils.dataset_utils import load_and_prepare_raw_datasets
@@ -27,7 +27,7 @@ def do_preprocess(config: KrillConfig):
     monitor.report_current("after loading datasets")
 
     # Load tokenizer
-    tokenizer = AutoTokenizer.from_pretrained(config.hub_tokenizer_id)
+    tokenizer = AutoTokenizer.from_pretrained(config.tokenizer.hub_id)
 
     def tokenize_function(examples):
         tokenized_inputs = tokenizer(examples["text"],
@@ -63,7 +63,7 @@ def do_preprocess(config: KrillConfig):
         'map') else [len(x) for x in tokenized["input_ids"]]
     selected = [
         i for i, l in enumerate(lengths)
-        if l >= config.dataset_prepared_min_length
+        if l >= config.preprocess.min_length
     ]
     # Compute token drop statistics from filtering
     total_tokens_before_filter = sum(lengths)
@@ -74,9 +74,9 @@ def do_preprocess(config: KrillConfig):
 
     # Pack sequences
     monitor.report_current("before packing")
-    print(f"Packing into sequences of length {config.sequence_len}...", end="")
+    print(f"Packing into sequences of length {config.preprocess.sequence_len}...", end="")
     packed = pack_dataset(tokenized,
-                          seq_length=config.sequence_len,
+                          seq_length=config.preprocess.sequence_len,
                           strategy="wrapped",
                           map_kwargs={"batch_size": len(tokenized)})
 
@@ -86,12 +86,12 @@ def do_preprocess(config: KrillConfig):
     last_dropped_chunk_length = 0
     if len(packed) > 0:
         last_len = len(packed[-1]["input_ids"])
-        if last_len < config.sequence_len:
+        if last_len < config.preprocess.sequence_len:
             last_dropped_chunk_length = last_len
             packed = packed.select(list(range(len(packed) - 1)))
 
     monitor.report_current("before saving")
-    packed.save_to_disk(config.dataset_prepared_path)
+    packed.save_to_disk(config.preprocess.prepared_path)
     monitor.report_current("after saving")
 
     inspect_pretrain_dataset(dataset=packed,
@@ -99,10 +99,10 @@ def do_preprocess(config: KrillConfig):
                              show_example_rows_limit=1)
 
     print(
-        f"\n\033[1;41;97mDropped {filter_dropped_tokens} tokens\033[0m during filtering (samples shorter than min_length={config.dataset_prepared_min_length})"
+        f"\n\033[1;41;97mDropped {filter_dropped_tokens} tokens\033[0m during filtering (samples shorter than min_length={config.preprocess.min_length})"
     )
     print(
-        f"\n\033[1;41;97mDropped {last_dropped_chunk_length} tokens\033[0m from final incomplete chunk (length {last_dropped_chunk_length} < sequence_len={config.sequence_len})"
+        f"\n\033[1;41;97mDropped {last_dropped_chunk_length} tokens\033[0m from final incomplete chunk (length {last_dropped_chunk_length} < sequence_len={config.preprocess.sequence_len})"
     )
 
     print(f"\nOriginal dataset rows: {len(raw_dataset)}")
@@ -115,11 +115,11 @@ def do_preprocess(config: KrillConfig):
         # Check for any samples that do not match the expected context length
         wrong_indices = [
             i for i, sample in enumerate(packed)
-            if len(sample["input_ids"]) != config.sequence_len
+            if len(sample["input_ids"]) != config.preprocess.sequence_len
         ]
         if wrong_indices:
             print(f"\033[1;41;97mWarning: Found {len(wrong_indices)} samples "
-                  f"with incorrect length (expected {config.sequence_len}). "
+                  f"with incorrect length (expected {config.preprocess.sequence_len}). "
                   f"Indices: {wrong_indices}\033[0m")
         else:
             print(
@@ -127,7 +127,7 @@ def do_preprocess(config: KrillConfig):
             )
 
     print(
-        f"🦐 Krill: Finished. Packed data saved to {config.dataset_prepared_path}"
+        f"🦐 Krill: Finished. Packed data saved to {config.preprocess.prepared_path}"
     )
 
     monitor.report_final()

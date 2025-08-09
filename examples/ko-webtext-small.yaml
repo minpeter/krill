@@ -1,27 +1,24 @@
-# krill train-tokenizer
-vocab_size: 32000
-hub_tokenizer_id: minpeter/tiny-ko-tokenizer-32k-250725
-
-# krill preprocess
-sequence_len: 8192
-dataset_prepared_path: ./artifacts/webtext-8k
-dataset_prepared_min_length: 150
-
 datasets:
   - path: HAERAE-HUB/KOREAN-WEBTEXT
     split: train[:10000]
     text_column: text
 
-# krill train
-hub_model_id: minpeter/webtext-8k-small-250801
-output_dir: ./artifacts/models/webtext-8k-small-250801
+tokenizer:
+  hub_id: minpeter/tiny-ko-tokenizer-32k-250725
+  vocab_size: 32000
 
-num_epochs: 10
-learning_rate: 1e-3
-weight_decay: 0.01
-optimizer: muon
+preprocess:
+  prepared_path: ./artifacts/webtext-8k
+  sequence_len: 8192
+  min_length: 150
 
-micro_batch_size: 128
-gradient_accumulation_steps: 1
-
-model_config_name: small
+train:
+  hub_model_id: minpeter/webtext-8k-small-250801
+  output_dir: ./artifacts/models/webtext-8k-small-250801
+  num_epochs: 10
+  learning_rate: 1e-3
+  weight_decay: 0.01
+  optimizer: muon
+  micro_batch_size: 128
+  gradient_accumulation_steps: 1
+  model_config_name: small

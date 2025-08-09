@@ -103,7 +103,7 @@ def inference(model: str, inspect: bool):
             import yaml
             with open(model, "r") as f:
                 cfg = yaml.safe_load(f)
-            model_id = cfg.get("hub_model_id")
+            model_id = cfg.get("train", {}).get("hub_model_id")
             if not model_id:
                 raise KeyError("hub_model_id not found in config")
         except Exception as e:
