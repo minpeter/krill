@@ -15,7 +15,7 @@ def do_evaluate(model: str):
         batch_size="auto"
     )
 
-    print(results)
+    print(results.get("results", {}))
 
     wandb.init(
         project="krill-eval",
