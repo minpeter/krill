@@ -90,34 +90,31 @@ Runs interactive generation from a model ID or YAML config. The `--inspect` flag
 Krill uses a YAML configuration file validated by Pydantic (`KrillConfig`). Example:
 
 ```yaml
-# krill train-tokenizer
-vocab_size: 32000
-hub_tokenizer_id: minpeter/webtext-tokenizer-32k
-
-# krill preprocess
-sequence_len: 8192
-dataset_prepared_path: ./artifacts/webtext-8k
-dataset_prepared_min_length: 150
-
 datasets:
-  - path: HAERAE-HUB/KOREAN-WEBTEXT
-    split: train[:10_000]
+  - path: pretraining/tiny-korean-100k
+    split: train
     text_column: text
 
-# krill train
-hub_model_id: minpeter/webtext-8k-micro-250801
-output_dir: ./artifacts/models/webtext-8k-micro-250801
+tokenizer:
+  hub_id: pretraining/pico-tokenizer-32k
+  vocab_size: 32000
 
-num_epochs: 1
-learning_rate: 1e-3
-weight_decay: 0.01
-optimizer: muon
-muon_implementation: moonlight
+preprocess:
+  prepared_path: ./artifacts/pico-1k
+  sequence_len: 1024
+  min_length: 150
 
-micro_batch_size: 1
-gradient_accumulation_steps: 1
-
-model_config_name: micro
+train:
+  hub_model_id: pretraining/pico-1k
+  output_dir: ./artifacts/models/pico-1k
+  num_epochs: 1
+  learning_rate: 1e-3
+  weight_decay: 0.01
+  optimizer: muon
+  muon_implementation: moonlight
+  micro_batch_size: 2048
+  gradient_accumulation_steps: 1
+  model_config_name: pico
 ```
 
 Refer to `src/krill/utils/config.py` for full schema and defaults.
