@@ -32,8 +32,8 @@ def do_train(config_path: str):
     logging.basicConfig(level=logging.INFO)
     logger = logging.getLogger(__name__)
     # Tokenizer
-    logger.info(f"Loading tokenizer {config.hub_tokenizer_id}")
-    tokenizer = AutoTokenizer.from_pretrained(config.hub_tokenizer_id)
+    logger.info(f"Loading tokenizer {config.tokenizer.hub_id}")
+    tokenizer = AutoTokenizer.from_pretrained(config.tokenizer.hub_id)
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
 
@@ -52,10 +52,10 @@ def do_train(config_path: str):
         "small": LlamaConfig(initializer_range=(1 / math.sqrt(768)), hidden_size=768, num_hidden_layers=27, intermediate_size=1920, tie_word_embeddings=True, num_attention_heads=12, num_key_value_heads=4),
     }
 
-    cfg = model_configs.get(config.model_config_name)
+    cfg = model_configs.get(config.train.model_config_name)
     cfg.torch_dtype = torch.bfloat16
     cfg.vocab_size = len(tokenizer)
-    cfg.max_position_embeddings = config.sequence_len
+    cfg.max_position_embeddings = config.preprocess.sequence_len
     cfg.use_cache = False
 
     cfg.pad_token_id = tokenizer.pad_token_id
@@ -73,23 +73,23 @@ def do_train(config_path: str):
         cfg.rope_theta = 10_000.0  # default
 
     # Model
-    logger.info(f"Initializing model '{config.model_config_name}'")
+    logger.info(f"Initializing model '{config.train.model_config_name}'")
     model = LlamaForCausalLM(cfg)
     model.to(torch.bfloat16).to(torch.device(
         "cuda" if torch.cuda.is_available() else "cpu"))
 
     # Optimizer
     optimizer = get_optimizer(
-        config.optimizer,
+        config.train.optimizer,
         model,
-        lr=config.learning_rate,
-        wd=config.weight_decay,
-        muon_implementation=config.muon_implementation
+        lr=config.train.learning_rate,
+        wd=config.train.weight_decay,
+        muon_implementation=config.train.muon_implementation
     )
 
     # Dataset
-    logger.info(f"Loading dataset from {config.dataset_prepared_path}")
-    ds = load_from_disk(config.dataset_prepared_path)
+    logger.info(f"Loading dataset from {config.preprocess.prepared_path}")
+    ds = load_from_disk(config.preprocess.prepared_path)
     ds = ds.train_test_split(test_size=0.001, shuffle=True)
 
     # Data collator
@@ -102,14 +102,14 @@ def do_train(config_path: str):
 
     # Training args
     training_args = TrainingArguments(
-        output_dir=config.output_dir,
+        output_dir=config.train.output_dir,
         do_train=True,
         do_eval=True,
-        logging_dir=f"{config.output_dir}/logs",
+        logging_dir=f"{config.train.output_dir}/logs",
         overwrite_output_dir=True,
 
         push_to_hub=True,
-        hub_model_id=config.hub_model_id,
+        hub_model_id=config.train.hub_model_id,
         hub_strategy="checkpoint",
 
         eval_strategy="steps",
@@ -123,17 +123,17 @@ def do_train(config_path: str):
 
 
         # auto_find_batch_size=True,
-        per_device_train_batch_size=config.micro_batch_size,
-        gradient_accumulation_steps=config.gradient_accumulation_steps,
+        per_device_train_batch_size=config.train.micro_batch_size,
+        gradient_accumulation_steps=config.train.gradient_accumulation_steps,
 
 
-        num_train_epochs=config.num_epochs,
+        num_train_epochs=config.train.num_epochs,
 
         warmup_ratio=0.05,
         # --- Muon이 weight decay를 자체 처리하므로 Trainer에서는 0으로 설정 ---
         weight_decay=0.0,
         lr_scheduler_type="cosine",  # warmup_stable_decay
-        learning_rate=config.learning_rate,
+        learning_rate=config.train.learning_rate,
         bf16=SUPPORTS_BFLOAT16,
 
 
@@ -170,15 +170,15 @@ def do_train(config_path: str):
         optimizers=(optimizer, None),
     )
     # Save tokenizer
-    os.makedirs(config.output_dir, exist_ok=True)
-    tokenizer.save_pretrained(config.output_dir)
-    tokenizer.push_to_hub(config.hub_model_id)
+    os.makedirs(config.train.output_dir, exist_ok=True)
+    tokenizer.save_pretrained(config.train.output_dir)
+    tokenizer.push_to_hub(config.train.hub_model_id)
     # Train
     trainer.train(
         # resume_from_checkpoint=True
         # resume_from_checkpoint="last-checkpoint" # resume from the huggingface_hub last checkpoint
     )
-    print(f"🚀 [Train] Finished. Model saved to {config.output_dir}")
+    print(f"🚀 [Train] Finished. Model saved to {config.train.output_dir}")
 
 
 def main():

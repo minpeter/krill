@@ -1,6 +1,6 @@
 datasets:
   - path: pretraining/tiny-korean-100k
-    split: train[:100]
+    split: train
     text_column: text
 
 tokenizer:
