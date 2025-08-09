@@ -31,6 +31,8 @@ class TrainConfig(BaseModel):
     weight_decay: float = Field(default=0.01)
     optimizer: str = Field(default="muon")
     muon_implementation: str = Field(default="moonlight")
+    # Model family/architecture, e.g., 'llama' or 'qwen3'
+    arch: str = Field(default="llama")
     model_config_name: str = Field(default="small")
     gradient_accumulation_steps: int = Field(default=1)
     micro_batch_size: int | None = Field(default=1)

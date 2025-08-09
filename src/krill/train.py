@@ -8,6 +8,8 @@ from datasets import load_from_disk
 from transformers import (
     LlamaConfig,
     LlamaForCausalLM,
+    Qwen3Config,
+    Qwen3ForCausalLM,
     AutoTokenizer,
     Trainer,
     TrainingArguments,
@@ -18,6 +20,69 @@ from transformers import (
 from krill.utils.optimizer import get_optimizer
 from krill.utils.config import load_config
 from krill import HAS_FLASH_ATTENTION, SUPPORTS_BFLOAT16
+
+
+def build_llama_config(preset: str) -> LlamaConfig:
+    llama_presets = {
+        "pico": LlamaConfig(
+            initializer_range=0.02,
+            hidden_size=16,
+            num_hidden_layers=2,
+            intermediate_size=64,
+            tie_word_embeddings=True,
+            num_attention_heads=4,
+            num_key_value_heads=4,
+        ),
+        "micro": LlamaConfig(
+            initializer_range=(1 / math.sqrt(256)),
+            hidden_size=256,
+            num_hidden_layers=12,
+            intermediate_size=1024,
+            tie_word_embeddings=True,
+            num_attention_heads=4,
+            num_key_value_heads=2,
+        ),
+        "small": LlamaConfig(
+            initializer_range=(1 / math.sqrt(768)),
+            hidden_size=768,
+            num_hidden_layers=27,
+            intermediate_size=1920,
+            tie_word_embeddings=True,
+            num_attention_heads=12,
+            num_key_value_heads=4,
+        ),
+    }
+    return llama_presets[preset]
+
+
+def build_qwen3_config(preset: str):
+    qwen_presets = {
+        "pico": Qwen3Config(
+            hidden_size=16,
+            num_hidden_layers=2,
+            intermediate_size=64,
+            num_attention_heads=4,
+            num_key_value_heads=4,
+            tie_word_embeddings=True,
+        ),
+        "micro": Qwen3Config(
+            hidden_size=256,
+            num_hidden_layers=12,
+            intermediate_size=1024,
+            num_attention_heads=4,
+            num_key_value_heads=2,
+            tie_word_embeddings=True,
+        ),
+        "small": Qwen3Config(
+            hidden_size=768,
+            num_hidden_layers=27,
+            intermediate_size=1920,
+            num_attention_heads=12,
+            num_key_value_heads=4,
+            tie_word_embeddings=True,
+        ),
+    }
+    return qwen_presets[preset]
 
 
 def do_train(config_path: str):
@@ -37,58 +102,45 @@ def do_train(config_path: str):
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
 
-    # Model config
-    model_configs = {
-        "pico":
-        LlamaConfig(initializer_range=0.02,
-                    hidden_size=16,
-                    num_hidden_layers=2,
-                    intermediate_size=64,
-                    tie_word_embeddings=False,
-                    num_attention_heads=4,
-                    num_key_value_heads=4,
-                    ),
-        "micro":
-        LlamaConfig(initializer_range=(1 / math.sqrt(256)),
-                    hidden_size=256,
-                    num_hidden_layers=12,
-                    intermediate_size=1024,
-                    tie_word_embeddings=True,
-                    num_attention_heads=4,
-                    num_key_value_heads=2),
-        "small":
-        LlamaConfig(initializer_range=(1 / math.sqrt(768)),
-                    hidden_size=768,
-                    num_hidden_layers=27,
-                    intermediate_size=1920,
-                    tie_word_embeddings=True,
-                    num_attention_heads=12,
-                    num_key_value_heads=4),
-    }
+    # Model config presets per arch
+    arch = getattr(config.train, "arch", "llama").lower()
 
-    cfg = model_configs.get(config.train.model_config_name)
+    preset_name = config.train.model_config_name
+    if arch == "llama":
+        cfg = build_llama_config(preset_name)
+    elif arch == "qwen3":
+        cfg = build_qwen3_config(preset_name)
+    else:
+        raise ValueError(f"Unsupported arch: {arch}. Supported: llama, qwen3")
+
+    # Common config tweaks
     cfg.torch_dtype = torch.bfloat16
     cfg.vocab_size = len(tokenizer)
     cfg.max_position_embeddings = config.preprocess.sequence_len
     cfg.use_cache = False
 
+    # Tokens
     cfg.pad_token_id = tokenizer.pad_token_id
-    # Following Qwen style: only the BOS is set in the model config; not actually used
     cfg.bos_token_id = tokenizer.eos_token_id
     cfg.eos_token_id = tokenizer.eos_token_id
 
+    # Attention implementation
     if HAS_FLASH_ATTENTION:
-        cfg._attn_implementation = "flash_attention_2"
+        # Llama uses _attn_implementation, some configs accept attn_implementation
+        setattr(cfg, "_attn_implementation", "flash_attention_2")
 
-    # Set rope_theta
-    if cfg.max_position_embeddings >= 8192:
-        cfg.rope_theta = 1_000_000.0  # or optionally 500_000.0
+    # RoPE theta
+    if getattr(cfg, "max_position_embeddings", 0) >= 8192:
+        setattr(cfg, "rope_theta", 1_000_000.0)
     else:
-        cfg.rope_theta = 10_000.0  # default
+        setattr(cfg, "rope_theta", 10_000.0)
 
     # Model
-    logger.info(f"Initializing model '{config.train.model_config_name}'")
-    model = LlamaForCausalLM(cfg)
+    logger.info(f"Initializing model '{preset_name}' for arch '{arch}'")
+    if arch == "llama":
+        model = LlamaForCausalLM(cfg)
+    else:
+        model = Qwen3ForCausalLM(cfg)
     model.to(torch.bfloat16).to(
         torch.device("cuda" if torch.cuda.is_available() else "cpu"))
 
@@ -152,7 +204,7 @@ def do_train(config_path: str):
 
         # https://huggingface.co/docs/transformers/v4.53.3/en/trainer#optimizations
         use_liger_kernel=torch.cuda.is_available(),
-        # neftune_noise_alpha= 0.1,
+        # neftune_noise_alpha=0.1,
 
         # torch_compile=True,
         # # "default", "max-autotune", "reduce-overhead"

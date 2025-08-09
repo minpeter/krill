@@ -13,8 +13,10 @@ preprocess:
   min_length: 150
 
 train:
-  hub_model_id: pretraining/pico-1k
-  output_dir: ./artifacts/models/pico-1k
+  arch: qwen3
+  model_config_name: pico
+  hub_model_id: pretraining/qwen3-pico-1k
+  output_dir: ./artifacts/models/qwen3-pico-1k
   num_epochs: 1
   learning_rate: 1e-3
   weight_decay: 0.01
@@ -22,4 +24,3 @@ train:
   muon_implementation: moonlight
   micro_batch_size: 2048
   gradient_accumulation_steps: 1
-  model_config_name: pico

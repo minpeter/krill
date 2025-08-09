@@ -22,6 +22,8 @@ preprocess:
   min_length: 150
 
 train:
+  arch: llama
+  model_config_name: small
   hub_model_id: minpeter/tiny-ko-small-250802
   output_dir: ./artifacts/models/tiny-ko-small-250802
   num_epochs: 1
@@ -31,4 +33,3 @@ train:
   muon_implementation: moonlight
   micro_batch_size: 16
   gradient_accumulation_steps: 1
-  model_config_name: small

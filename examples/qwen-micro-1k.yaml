@@ -1,0 +1,26 @@
+datasets:
+  - path: pretraining/tiny-korean-100k
+    split: train
+    text_column: text
+
+tokenizer:
+  hub_id: pretraining/pico-tokenizer-32k
+  vocab_size: 32000
+
+preprocess:
+  prepared_path: ./artifacts/pico-1k
+  sequence_len: 1024
+  min_length: 150
+
+train:
+  arch: qwen3
+  model_config_name: micro
+  hub_model_id: pretraining/qwen3-micro-1k
+  output_dir: ./artifacts/models/qwen3-micro-1k
+  num_epochs: 1
+  learning_rate: 1e-3
+  weight_decay: 0.01
+  optimizer: muon
+  muon_implementation: moonlight
+  micro_batch_size: 32
+  gradient_accumulation_steps: 1
