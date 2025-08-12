@@ -13,19 +13,19 @@ from tokenizers import (
     decoders,
     trainers,
 )
-from transformers import PreTrainedTokenizerFast, AutoTokenizer
-from datasets import Dataset, DatasetDict
 
 from krill.utils.config import KrillConfig
 from krill.utils.dataset_utils import load_and_prepare_raw_datasets
 
 
 def train_and_save_huggingface_tokenizer(
-    dataset: Dataset | DatasetDict,
+    dataset,
     output_dir: str,
     target_vocab_size: int,
     huggingface_hub_id: str,
 ):
+    from transformers import PreTrainedTokenizerFast, AutoTokenizer  # Lazy import
+
     # Define additional tokens
     additional_tokens = [
         "<|boundary|>",  # Token used as eos, pad, and unk during pretraining

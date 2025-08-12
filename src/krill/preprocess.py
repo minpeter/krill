@@ -1,7 +1,5 @@
 import os
 
-from transformers import AutoTokenizer
-from trl import pack_dataset
 
 from krill.utils.config import KrillConfig
 from krill.utils.dataset_utils import inspect_pretrain_dataset
@@ -10,6 +8,9 @@ from krill.utils.memory_monitor import MemoryMonitor
 
 def do_preprocess(config: KrillConfig):
     """Preprocesses the data based on the loaded Config object."""
+    from transformers import AutoTokenizer  # Lazy import
+    from trl import pack_dataset  # Lazy import
+
     print("🦐 Krill: Starting preprocessing...")
 
     monitor = MemoryMonitor()

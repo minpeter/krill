@@ -5,8 +5,6 @@ Utility functions for dataset loading.
 import os
 import re
 from typing import Any
-from datasets import Dataset, DatasetDict
-from datasets import load_dataset, concatenate_datasets
 
 
 def clean_text(text):
@@ -65,6 +63,8 @@ def load_and_prepare_raw_datasets(dataset_configs):
     and apply text cleaning, quality filtering, and deduplication.
     Each config should have attributes 'path', 'split', and 'text_column'.
     """
+    from datasets import load_dataset, concatenate_datasets  # Lazy import
+
     # 1. Load and concatenate raw datasets
     raw_datasets = []
     for ds_cfg in dataset_configs:
@@ -123,10 +123,16 @@ def load_and_prepare_raw_datasets(dataset_configs):
 
 
 def inspect_pretrain_dataset(
-    dataset: Dataset | DatasetDict,
+    dataset,
     tokenizer: Any,
     show_example_rows_limit: int = 3
 ):
+    # Lazy import for type hints only when needed to avoid heavy import at module load
+    try:
+        from datasets import Dataset, DatasetDict  # noqa: F401
+    except Exception:
+        pass
+
     for i in range(min(show_example_rows_limit, len(dataset))):
         sample = dataset[i]
 

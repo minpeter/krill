@@ -1,6 +1,4 @@
 from torch.nn.functional import nll_loss
-from transformers import AutoTokenizer, AutoConfig, GPT2LMHeadModel
-import torch
 
 
 def inspect_token_prediction_info():
@@ -11,6 +9,8 @@ def inspect_token_prediction_info():
 
 def inspect_token_predictions(tokenizer, model, text):
     """Compute per-token loss, entropy, top-5 predictions and display colored shading."""
+    import torch  # Lazy import
+
     # Tokenize input and move tensors to the model's device
     tokenized = tokenizer(text, return_tensors='pt',
                           return_offsets_mapping=True)
@@ -65,6 +65,9 @@ def inspect_token_predictions(tokenizer, model, text):
 
 
 if __name__ == "__main__":
+    from transformers import AutoTokenizer, AutoConfig, GPT2LMHeadModel  # Lazy import in script mode
+    import torch
+
     context_length = 128
     tokenizer = AutoTokenizer.from_pretrained(
         "huggingface-course/code-search-net-tokenizer"

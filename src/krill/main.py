@@ -1,7 +1,7 @@
 import click
 import subprocess
 import sys
-from krill import HAS_FLASH_ATTENTION, get_statistics
+from krill import has_flash_attention, get_statistics
 from krill.utils import patch_optimized_env, resolve_model_arg
 
 
@@ -10,7 +10,7 @@ def cli():
     """A CLI tool for krill, inspired by axolotl and unsloth."""
 
     patch_optimized_env()
-    print(get_statistics())
+    # Avoid printing environment statistics on every CLI startup to reduce import-time overhead
 
 
 @cli.command(context_settings={"ignore_unknown_options": True, "allow_extra_args": True})
@@ -24,9 +24,12 @@ def train(ctx, config: str):
     """
     # Restrict training to CUDA-enabled GPUs
 
-    if not HAS_FLASH_ATTENTION:
+    if not has_flash_attention():
         print(
             "\033[1;41;97mWarning: For CUDA-enabled environments,\033[0m please run: pip install 'krill[cuda] @ git+https://github.com/minpeter/krill.git'", file=sys.stderr)
+
+    # Print environment stats here where it's most useful
+    print(get_statistics())
 
     print("Preparing to launch training with accelerate...")
     # Main command: accelerate launch
@@ -99,6 +102,9 @@ def inference(model: str, inspect: bool):
     except Exception as e:
         print(f"Error loading model: {e}", file=sys.stderr)
         sys.exit(1)
+
+    # Print environment stats at the start of inference for user context
+    print(get_statistics())
 
     from krill.inference import do_inference
     do_inference(model_id, inspect)

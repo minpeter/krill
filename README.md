@@ -5,11 +5,20 @@
 ## Installation
 
 ```bash
-# For model training and the full pipeline
-uv pip install 'krill[cuda]@git+https://github.com/minpeter/krill.git' --torch-backend=cu128
+# Minimal CLI (fast install, no heavy ML frameworks)
+uv pip install 'krill@git+https://github.com/minpeter/krill.git'
 
-# For preprocessing tasks
-uv pip install 'krill@git+https://github.com/minpeter/krill.git' --torch-backend=cpu
+# Preprocessing tools only
+uv pip install 'krill[preprocess]@git+https://github.com/minpeter/krill.git'
+
+# Inference only (CPU/GPU backed by PyTorch + Transformers)
+uv pip install 'krill[inference]@git+https://github.com/minpeter/krill.git' --torch-backend=cpu
+
+# Full training pipeline (GPU recommended)
+uv pip install 'krill[train,preprocess,inference]@git+https://github.com/minpeter/krill.git' --torch-backend=cu128
+
+# Optional CUDA accelerators (FlashAttention2, Triton, Liger kernel)
+uv pip install 'krill[cuda]@git+https://github.com/minpeter/krill.git'
 ```
 
 After installation, the CLI is available as both `krill` and the shorthand `kr`.

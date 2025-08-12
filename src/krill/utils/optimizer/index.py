@@ -1,8 +1,22 @@
 import torch
 
-from muon import SingleDeviceMuonWithAuxAdam
-from pytorch_optimizer import Muon as PytorchOptimizerMuon
-from krill.utils.optimizer.moonlight_muon import Muon as MoonlightMuon
+
+def _import_moonlight_muon():
+    from krill.utils.optimizer.moonlight_muon import Muon as MoonlightMuon
+
+    return MoonlightMuon
+
+
+def _import_kellerjordan_muon():
+    from muon import SingleDeviceMuonWithAuxAdam
+
+    return SingleDeviceMuonWithAuxAdam
+
+
+def _import_pytorch_optimizer_muon():
+    from pytorch_optimizer import Muon as PytorchOptimizerMuon
+
+    return PytorchOptimizerMuon
 
 
 def get_optimizer(optimizer_name, model, lr=1e-3, wd=0.1, muon_implementation="moonlight"):
@@ -30,6 +44,7 @@ def get_optimizer(optimizer_name, model, lr=1e-3, wd=0.1, muon_implementation="m
 
         if muon_implementation == "moonlight":
             # https://github.com/MoonshotAI/Moonlight
+            MoonlightMuon = _import_moonlight_muon()
             optimizer = MoonlightMuon(
                 lr=lr,
                 wd=wd,
@@ -40,6 +55,7 @@ def get_optimizer(optimizer_name, model, lr=1e-3, wd=0.1, muon_implementation="m
         elif muon_implementation == "kellerjordan":
             # https://github.com/KellerJordan/Muon
             # https://kellerjordan.github.io/posts/muon/
+            SingleDeviceMuonWithAuxAdam = _import_kellerjordan_muon()
             param_groups = [
                 dict(params=muon_params, use_muon=True,
                      lr=lr, weight_decay=wd),
@@ -49,6 +65,7 @@ def get_optimizer(optimizer_name, model, lr=1e-3, wd=0.1, muon_implementation="m
             optimizer = SingleDeviceMuonWithAuxAdam(param_groups)
         elif muon_implementation == "pytorch_optimizer":
             # https://github.com/kozistr/pytorch_optimizer/blob/main/pytorch_optimizer/optimizer/muon.py
+            PytorchOptimizerMuon = _import_pytorch_optimizer_muon()
             optimizer = PytorchOptimizerMuon(
                 muon_params, lr=lr, weight_decay=wd,
                 adamw_params=non_muon_params, adamw_lr=lr, adamw_wd=wd

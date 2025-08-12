@@ -19,7 +19,7 @@ from transformers import (
 
 from krill.utils.optimizer import get_optimizer
 from krill.utils.config import load_config
-from krill import HAS_FLASH_ATTENTION, SUPPORTS_BFLOAT16
+from krill import has_flash_attention, supports_bfloat16
 
 
 def build_llama_config(preset: str) -> LlamaConfig:
@@ -124,8 +124,9 @@ def do_train(config_path: str):
     cfg.bos_token_id = tokenizer.eos_token_id
     cfg.eos_token_id = tokenizer.eos_token_id
 
-    # Attention implementation
-    if HAS_FLASH_ATTENTION:
+    # Attention implementation (lazy hardware check)
+    use_flash_attn = has_flash_attention()
+    if use_flash_attn:
         # Llama uses _attn_implementation, some configs accept attn_implementation
         setattr(cfg, "_attn_implementation", "flash_attention_2")
 
@@ -158,7 +159,7 @@ def do_train(config_path: str):
     ds = ds.train_test_split(test_size=0.001, shuffle=True)
 
     # Data collator
-    if HAS_FLASH_ATTENTION:
+    if use_flash_attn:
         data_collator = DataCollatorWithFlattening(
             return_flash_attn_kwargs=True,
             return_position_ids=True,
@@ -194,7 +195,7 @@ def do_train(config_path: str):
         weight_decay=0.0,
         lr_scheduler_type="cosine",  # warmup_stable_decay
         learning_rate=config.train.learning_rate,
-        bf16=SUPPORTS_BFLOAT16,
+        bf16=supports_bfloat16(),
         ddp_find_unused_parameters=True,
         dataloader_num_workers=16,
         dataloader_prefetch_factor=2,

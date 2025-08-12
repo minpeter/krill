@@ -19,25 +19,38 @@ readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "click>=8.2.1",
-    "datasets>=4.0.0",
     "hf-transfer>=0.1.9",
-    "torch==2.7.1",
-    "transformers>=4.54.1",
-    "trl>=0.20.0",
-    "wandb>=0.21.0",
     "PyYAML>=5.4.1",
     "pydantic>=1.10.0",
-    "muon-optimizer",
-    "pytorch-optimizer>=3.7.0",
-    "accelerate>=1.9.0",
-    "lm-eval[wandb]>=0.4.9",
 ]
 
 [project.optional-dependencies]
+# CUDA-only accelerators
 cuda = [
     "triton>=3.3.1",
     "flash-attn>=2.8.2",
     "liger-kernel>=0.6.1",
+]
+# Functional feature groups to avoid heavy installs unless needed
+preprocess = [
+    "datasets>=4.0.0",
+    "transformers>=4.54.1",
+    "trl>=0.20.0",
+]
+train = [
+    "torch==2.7.1",
+    "transformers>=4.54.1",
+    "pytorch-optimizer>=3.7.0",
+    "accelerate>=1.9.0",
+    "trl>=0.20.0",
+]
+inference = [
+    "torch==2.7.1",
+    "transformers>=4.54.1",
+]
+eval = [
+    "lm-eval[wandb]>=0.4.9",
+    "wandb>=0.21.0",
 ]
 
 [tool.uv.sources]

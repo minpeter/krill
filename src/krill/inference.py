@@ -1,15 +1,21 @@
 """
 Module for interactive inference using streaming text generation.
 """
-import transformers
-import torch
 import sys
 from threading import Thread
-from transformers import AutoModelForCausalLM, TextIteratorStreamer, AutoTokenizer, GenerationConfig
 
 
 def do_inference(model_id: str, inspect: bool = False):
     """Interactive inference on a text generation model with streaming output."""
+    import torch  # Lazy import
+    import transformers  # Lazy import
+    from transformers import (
+        AutoModelForCausalLM,
+        TextIteratorStreamer,
+        AutoTokenizer,
+        GenerationConfig,
+    )
+
     print(f"⚓️ Loading model: {model_id}...")
 
     if inspect:
