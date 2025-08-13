@@ -143,9 +143,9 @@ def _validate_remote_checkpoint(hub_model_id: str) -> None:
         # - Repository doesn't exist
         # - last-checkpoint directory doesn't exist
         # - Network issues
-        raise FileNotFoundError(
-            f"Error accessing remote checkpoint 'last-checkpoint' for model {hub_model_id}: {str(e)}."
-        )
+        raise IOError(
+            f"Error accessing remote checkpoint 'last-checkpoint' for model {hub_model_id}: {str(e)}"
+        ) from e
 
 
 def _get_cached_remote_checkpoint(hub_model_id: str) -> str:
