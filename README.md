@@ -115,6 +115,14 @@ train:
   micro_batch_size: 2048
   gradient_accumulation_steps: 1
   model_config_name: pico
+  # Resume training from checkpoints (optional)
+  # Options:
+  # - auto: Smart detection (local checkpoint first, then remote, fallback to scratch)
+  # - local: Resume from local checkpoint only (error if none found)
+  # - remote: Resume from remote checkpoint on Hugging Face Hub
+  # - true: Let Hugging Face auto-detect last local checkpoint
+  # - false: Start from scratch
+  # resume: auto
 ```
 
 Refer to `src/krill/utils/config.py` for full schema and defaults.

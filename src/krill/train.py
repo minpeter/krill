@@ -19,6 +19,7 @@ from transformers import (
 
 from krill.utils.optimizer import get_optimizer
 from krill.utils.config import load_config
+from krill.utils.resume import determine_resume_checkpoint
 from krill import HAS_FLASH_ATTENTION, SUPPORTS_BFLOAT16
 
 
@@ -227,11 +228,20 @@ def do_train(config_path: str):
     os.makedirs(config.train.output_dir, exist_ok=True)
     tokenizer.save_pretrained(config.train.output_dir)
     tokenizer.push_to_hub(config.train.hub_model_id)
-    # Train
-    trainer.train(
-        # resume_from_checkpoint=True
-        # resume_from_checkpoint="last-checkpoint" # resume from the huggingface_hub last checkpoint
+
+    # Handle resume functionality
+    resume_from_checkpoint = determine_resume_checkpoint(
+        config.train.resume,
+        config.train.output_dir,
+        config.train.hub_model_id
     )
+
+    # Train
+    if resume_from_checkpoint:
+        trainer.train(resume_from_checkpoint=resume_from_checkpoint)
+    else:
+        trainer.train()
+        
     print(f"🚀 [Train] Finished. Model saved to {config.train.output_dir}")
 
 
