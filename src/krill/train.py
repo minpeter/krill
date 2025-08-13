@@ -19,6 +19,7 @@ from transformers import (
 
 from krill.utils.optimizer import get_optimizer
 from krill.utils.config import load_config
+from krill.utils.resume import determine_resume_checkpoint
 from krill import HAS_FLASH_ATTENTION, SUPPORTS_BFLOAT16
 
 
@@ -92,7 +93,6 @@ def do_train(config_path: str):
     # Load config centrally
     config = load_config(config_path)
     # Extract settings from Pydantic model
-    # ...access settings directly from config...
     # Logging
     logging.basicConfig(level=logging.INFO)
     logger = logging.getLogger(__name__)
@@ -126,7 +126,7 @@ def do_train(config_path: str):
 
     # Attention implementation
     if HAS_FLASH_ATTENTION:
-        # Llama uses _attn_implementation, some configs accept attn_implementation
+        # Set attention implementation to flash attention
         setattr(cfg, "_attn_implementation", "flash_attention_2")
 
     # RoPE theta
@@ -190,7 +190,7 @@ def do_train(config_path: str):
         gradient_accumulation_steps=config.train.gradient_accumulation_steps,
         num_train_epochs=config.train.num_epochs,
         warmup_ratio=0.05,
-        # --- Muon이 weight decay를 자체 처리하므로 Trainer에서는 0으로 설정 ---
+        # Muon handles weight decay internally, so set to 0 in Trainer
         weight_decay=0.0,
         lr_scheduler_type="cosine",  # warmup_stable_decay
         learning_rate=config.train.learning_rate,
@@ -227,11 +227,20 @@ def do_train(config_path: str):
     os.makedirs(config.train.output_dir, exist_ok=True)
     tokenizer.save_pretrained(config.train.output_dir)
     tokenizer.push_to_hub(config.train.hub_model_id)
-    # Train
-    trainer.train(
-        # resume_from_checkpoint=True
-        # resume_from_checkpoint="last-checkpoint" # resume from the huggingface_hub last checkpoint
+
+    # Handle resume functionality
+    resume_from_checkpoint = determine_resume_checkpoint(
+        config.train.resume,
+        config.train.output_dir,
+        config.train.hub_model_id
     )
+
+    # Train
+    if resume_from_checkpoint:
+        trainer.train(resume_from_checkpoint=resume_from_checkpoint)
+    else:
+        trainer.train()
+        
     print(f"🚀 [Train] Finished. Model saved to {config.train.output_dir}")
 
 
