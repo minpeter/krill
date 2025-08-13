@@ -18,7 +18,7 @@ uv pip install 'krill[cuda]@git+https://github.com/minpeter/krill.git' --torch-b
 
 ### For Preprocessing (CPU only)
 ```bash
-uv pip install 'krill@git+https://github.im/minpeter/krill.git' --torch-backend=cpu
+uv pip install 'krill@git+https://github.com/minpeter/krill.git' --torch-backend=cpu
 ```
 
 ## Usage
