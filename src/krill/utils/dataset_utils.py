@@ -14,23 +14,20 @@ def clean_text(text):
     Clean and normalize text data.
     """
     if not isinstance(text, str):
-        return ""  # Return empty string if not a string or handle error
+        return ""
 
-    # Remove whitespace from both ends of the string
+    # Remove whitespace from both ends
     text = text.strip()
 
-    # 0-1. Force UTF-8 validity check and remove invalid characters (added part)
-    # This process removes invalid UTF-8 byte sequences.
-    # In other words, it removes characters that cannot be re-encoded to UTF-8 within Python strings.
+    # Ensure UTF-8 validity by removing invalid byte sequences
     try:
         text = text.encode('utf-8', errors='ignore').decode('utf-8')
     except Exception as e:
-        # This exception should not occur theoretically, but we log it just in case.
         print(
             f"Warning: Error during UTF-8 re-encoding/decoding: {e}. Original text: {text[:50]}...")
-        text = ""  # Clear the text if an error occurs
+        text = ""
 
-    # 1-6. fix UnicodeEncodeError: 'utf-8' codec can't encode character '\udd2b' in position 2095: surrogates not allowed
+    # Remove surrogate pairs that can cause encoding issues
     text = re.sub(r'[\uD800-\uDFFF]', '', text)
 
     return text
@@ -42,19 +39,19 @@ seen_texts = set()
 
 def is_high_quality_and_unique(example):
     """
-    Function that performs quality filtering (length) and deduplication simultaneously
+    Perform quality filtering (length) and deduplication simultaneously.
     """
     text = example['text']
 
-    # 2-1. Length filtering: reject if text length is less than 100 characters
+    # Reject if text length is less than 100 characters
     if len(text) < 100:
         return False
 
-    # 2-2. Duplicate filtering: reject if text already appeared
+    # Reject if text already appeared (deduplication)
     if text in seen_texts:
         return False
 
-    # If it passes all filters, add to seen_texts and mark as passed
+    # Add to seen_texts and mark as passed
     seen_texts.add(text)
     return True
 
@@ -65,11 +62,11 @@ def load_and_prepare_raw_datasets(dataset_configs):
     and apply text cleaning, quality filtering, and deduplication.
     Each config should have attributes 'path', 'split', and 'text_column'.
     """
-    # 1. Load and concatenate raw datasets
+    # Load and concatenate raw datasets
     raw_datasets = []
     for ds_cfg in dataset_configs:
         print(
-            f"1. Loading dataset {ds_cfg.path} columns={getattr(ds_cfg, 'text_column', 'text')} split={ds_cfg.split}...")
+            f"Loading dataset {ds_cfg.path} columns={getattr(ds_cfg, 'text_column', 'text')} split={ds_cfg.split}...")
         ds = load_dataset(ds_cfg.path, split=ds_cfg.split)
         if getattr(ds_cfg, 'text_column', 'text') != 'text':
             ds = ds.rename_column(ds_cfg.text_column, 'text')
@@ -89,12 +86,12 @@ def load_and_prepare_raw_datasets(dataset_configs):
     print(
         f"Combined dataset total rows: {combined_dataset.num_rows / 1_000_000:.2f}M")
 
-    # 2. Text cleaning and normalization
+    # Text cleaning and normalization
     num_processors = max(1, os.cpu_count() - 8)
     print(
         f"Total CPUs: {os.cpu_count()}, Using {num_processors} processes for mapping.")
 
-    print("\n2. Starting text cleaning and normalization... (.map)")
+    print("Starting text cleaning and normalization... (.map)")
     cleaned_dataset = combined_dataset.map(
         lambda example: {'text': clean_text(example['text'])},
         num_proc=num_processors,
@@ -103,12 +100,11 @@ def load_and_prepare_raw_datasets(dataset_configs):
     print(
         f"Cleaned dataset total rows: {cleaned_dataset.num_rows / 1_000_000:.2f}M")
 
-    # 3. Quality filtering and deduplication
-    # Initialize global seen_texts set
+    # Quality filtering and deduplication
     global seen_texts
     seen_texts = set()
 
-    print("\n3. Starting quality and duplicate filtering... (.filter)")
+    print("Starting quality and duplicate filtering... (.filter)")
     final_dataset = cleaned_dataset.filter(
         is_high_quality_and_unique,
         # The 'seen_texts' set is a global variable so it may conflict during multiprocessing (num_proc > 1).
