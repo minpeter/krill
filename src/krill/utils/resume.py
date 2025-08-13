@@ -167,9 +167,9 @@ def _get_cached_remote_checkpoint(hub_model_id: str) -> str:
         print(f"🔄 Using cached remote checkpoint from: {checkpoint_dir}")
         return checkpoint_dir
     except Exception as e:
-        raise FileNotFoundError(
-            f"Error accessing remote checkpoint for model {hub_model_id}: {str(e)}."
-        )
+        raise IOError(
+            f"Error accessing remote checkpoint for model {hub_model_id}: {str(e)}"
+        ) from e
 
 
 def _handle_auto_resume(output_dir: str, hub_model_id: str) -> Optional[Union[str, bool]]:
