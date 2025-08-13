@@ -3,6 +3,7 @@ Utility functions for handling resume functionality in Krill.
 """
 import os
 import json
+import tempfile
 from typing import Optional, Union
 from transformers.trainer_utils import get_last_checkpoint
 
@@ -19,7 +20,7 @@ def determine_resume_checkpoint(resume_option: str, output_dir: str, hub_model_i
     Returns:
         None if no checkpoint should be used (start from scratch)
         Boolean True to let Hugging Face find the last local checkpoint automatically
-        String "last-checkpoint" for remote checkpoint resuming
+        String path to local checkpoint directory (downloaded from remote if needed)
     """
     resume_option = resume_option.lower()
 
@@ -36,9 +37,16 @@ def determine_resume_checkpoint(resume_option: str, output_dir: str, hub_model_i
         _validate_local_checkpoint(output_dir)
         return True  # Let Hugging Face handle the actual resuming
     elif resume_option == "remote":
-        # Validate remote checkpoint exists
+        # Validate remote checkpoint exists and get step info
         _validate_remote_checkpoint(hub_model_id)
-        return "last-checkpoint"
+        remote_step = _get_remote_checkpoint_step(hub_model_id)
+        if remote_step is not None:
+            if remote_step > 0:
+                print(f"🔄 Remote resume: Found remote checkpoint (step {remote_step})")
+            else:
+                print("🔄 Remote resume: Found remote checkpoint")
+        # Download the remote checkpoint and return local path
+        return _download_remote_checkpoint_to_temp(hub_model_id)
     else:
         raise ValueError(
             f"Invalid resume option: {resume_option}. "
@@ -67,18 +75,24 @@ def _get_remote_checkpoint_step(hub_model_id: str) -> Optional[int]:
     try:
         from huggingface_hub import hf_hub_download, HfApi
         api = HfApi()
-        # Check if the last-checkpoint revision exists
-        files = list(api.list_repo_files(
-            repo_id=hub_model_id, revision="last-checkpoint"))
-        if not files:
+        # Check if the last-checkpoint directory exists in the main branch
+        repo_tree = list(api.list_repo_tree(
+            repo_id=hub_model_id, revision="main"))
+        # Check if any item in the tree is a directory named "last-checkpoint"
+        # Folders have a 'tree_id' attribute, files have a 'blob_id' attribute
+        last_checkpoint_exists = any(
+            hasattr(item, 'tree_id') and item.path == "last-checkpoint"
+            for item in repo_tree
+        )
+        if not last_checkpoint_exists:
             return None
 
         # Try to download the trainer_state.json to get the global step
         try:
             trainer_state_file = hf_hub_download(
                 repo_id=hub_model_id,
-                filename="trainer_state.json",
-                revision="last-checkpoint"
+                filename="last-checkpoint/trainer_state.json",
+                revision="main"
             )
             with open(trainer_state_file, 'r') as f:
                 trainer_state = json.load(f)
@@ -111,23 +125,57 @@ def _validate_remote_checkpoint(hub_model_id: str) -> None:
     try:
         from huggingface_hub import HfApi
         api = HfApi()
-        # Check if the last-checkpoint revision exists by trying to list files
-        files = list(api.list_repo_files(
-            repo_id=hub_model_id, revision="last-checkpoint"))
-        # Check if there are any files (meaning the revision exists)
-        if not files:
+        # Check if the last-checkpoint directory exists in the main branch
+        # We list files in the main branch and look for the last-checkpoint directory
+        repo_tree = list(api.list_repo_tree(
+            repo_id=hub_model_id, revision="main"))
+        # Check if any item in the tree is a directory named "last-checkpoint"
+        # Folders have a 'tree_id' attribute, files have a 'blob_id' attribute
+        last_checkpoint_exists = any(
+            hasattr(item, 'tree_id') and item.path == "last-checkpoint"
+            for item in repo_tree
+        )
+        if not last_checkpoint_exists:
             raise FileNotFoundError(
-                f"No files found in remote checkpoint revision 'last-checkpoint' for model {hub_model_id}."
+                f"'last-checkpoint' directory not found in remote model {hub_model_id}."
             )
         print(
-            f"🔄 Found remote checkpoint: {hub_model_id} (last-checkpoint revision)")
+            f"🔄 Found remote checkpoint: {hub_model_id} (last-checkpoint directory)")
     except Exception as e:
         # Handle various error cases:
         # - Repository doesn't exist
-        # - last-checkpoint revision doesn't exist
+        # - last-checkpoint directory doesn't exist
         # - Network issues
         raise FileNotFoundError(
             f"Error accessing remote checkpoint 'last-checkpoint' for model {hub_model_id}: {str(e)}."
+        )
+
+
+def _download_remote_checkpoint_to_temp(hub_model_id: str) -> str:
+    """Download the remote checkpoint to a temporary directory and return its path."""
+    try:
+        from huggingface_hub import snapshot_download
+        import tempfile
+        import os
+        
+        # Create a temporary directory to store the downloaded checkpoint
+        temp_dir = tempfile.mkdtemp(prefix="krill_remote_checkpoint_")
+        checkpoint_dir = os.path.join(temp_dir, "last-checkpoint")
+        
+        # Download the last-checkpoint directory from the hub
+        snapshot_download(
+            repo_id=hub_model_id,
+            revision="main",
+            allow_patterns="last-checkpoint/*",
+            local_dir=temp_dir,
+            local_dir_use_symlinks=False
+        )
+        
+        print(f"🔄 Downloaded remote checkpoint to: {checkpoint_dir}")
+        return checkpoint_dir
+    except Exception as e:
+        raise FileNotFoundError(
+            f"Error downloading remote checkpoint for model {hub_model_id}: {str(e)}."
         )
 
 
@@ -146,7 +194,8 @@ def _handle_auto_resume(output_dir: str, hub_model_id: str) -> Optional[Union[st
         if remote_step > local_step:
             print(
                 f"🔄 Auto-resume: Found more recent remote checkpoint (step {remote_step} > {local_step})")
-            return "last-checkpoint"
+            # Download the remote checkpoint
+            return _download_remote_checkpoint_to_temp(hub_model_id)
         else:
             print(
                 f"🔄 Auto-resume: Found more recent local checkpoint (step {local_step} >= {remote_step})")
@@ -162,7 +211,8 @@ def _handle_auto_resume(output_dir: str, hub_model_id: str) -> Optional[Union[st
                 f"🔄 Auto-resume: Found remote checkpoint (step {remote_step})")
         else:
             print(f"🔄 Auto-resume: Found remote checkpoint")
-        return "last-checkpoint"
+        # Download the remote checkpoint
+        return _download_remote_checkpoint_to_temp(hub_model_id)
     else:
         # Neither exists
         print("⚠️  Auto-resume: No checkpoints found locally or remotely. Starting from scratch.")
