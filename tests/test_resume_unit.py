@@ -84,16 +84,11 @@ class TestResumeFunctionality(unittest.TestCase):
     @patch('huggingface_hub.HfApi')
     def test_validate_remote_checkpoint_not_found(self, mock_hf_api_class):
         """Test validation when remote checkpoint doesn't exist."""
-        # Mock the API response to show no last-checkpoint directory
+        # Mock the API to raise an exception when trying to list the last-checkpoint directory
         mock_api = MagicMock()
         mock_hf_api_class.return_value = mock_api
         
-        # Create mock items - no folder named "last-checkpoint"
-        mock_file = MagicMock()
-        mock_file.blob_id = "some-blob-id"
-        mock_file.path = "config.json"
-        
-        mock_api.list_repo_tree.return_value = [mock_file]
+        mock_api.list_repo_tree.side_effect = Exception("Directory not found")
         
         with self.assertRaises(FileNotFoundError) as context:
             _validate_remote_checkpoint(self.hub_model_id)
@@ -130,16 +125,11 @@ class TestResumeFunctionality(unittest.TestCase):
     @patch('huggingface_hub.HfApi')
     def test_get_remote_checkpoint_step_no_directory(self, mock_hf_api_class):
         """Test getting remote checkpoint step when directory doesn't exist."""
-        # Mock the API response to show no last-checkpoint directory
+        # Mock the API to raise an exception when trying to list the last-checkpoint directory
         mock_api = MagicMock()
         mock_hf_api_class.return_value = mock_api
         
-        # Create mock items - no folder named "last-checkpoint"
-        mock_file = MagicMock()
-        mock_file.blob_id = "some-blob-id"
-        mock_file.path = "config.json"
-        
-        mock_api.list_repo_tree.return_value = [mock_file]
+        mock_api.list_repo_tree.side_effect = Exception("Directory not found")
         
         step = _get_remote_checkpoint_step(self.hub_model_id)
         self.assertIsNone(step)

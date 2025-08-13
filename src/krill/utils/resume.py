@@ -41,7 +41,8 @@ def determine_resume_checkpoint(resume_option: str, output_dir: str, hub_model_i
         remote_step = _get_remote_checkpoint_step(hub_model_id)
         if remote_step is not None:
             if remote_step > 0:
-                print(f"🔄 Remote resume: Found remote checkpoint (step {remote_step})")
+                print(
+                    f"🔄 Remote resume: Found remote checkpoint (step {remote_step})")
             else:
                 print("🔄 Remote resume: Found remote checkpoint")
         # Get the remote checkpoint using HF cache and return local path
@@ -73,17 +74,18 @@ def _get_remote_checkpoint_step(hub_model_id: str) -> Optional[int]:
     """Get the global step of the remote last-checkpoint."""
     try:
         from huggingface_hub import hf_hub_download, HfApi
+        from huggingface_hub.utils import EntryNotFoundError
         api = HfApi()
-        # Check if the last-checkpoint directory exists in the main branch
-        repo_tree = list(api.list_repo_tree(
-            repo_id=hub_model_id, revision="main"))
-        # Check if any item in the tree is a directory named "last-checkpoint"
-        # Folders have a 'tree_id' attribute, files have a 'blob_id' attribute
-        last_checkpoint_exists = any(
-            hasattr(item, 'tree_id') and item.path == "last-checkpoint"
-            for item in repo_tree
-        )
-        if not last_checkpoint_exists:
+
+        # Check if the last-checkpoint directory exists by trying to list its contents
+        try:
+            list(api.list_repo_tree(
+                repo_id=hub_model_id,
+                revision="main",
+                path_in_repo="last-checkpoint"
+            ))
+        except Exception:
+            # Directory doesn't exist or other error
             return None
 
         # Try to download the trainer_state.json to get the global step
@@ -96,9 +98,12 @@ def _get_remote_checkpoint_step(hub_model_id: str) -> Optional[int]:
             with open(trainer_state_file, 'r') as f:
                 trainer_state = json.load(f)
                 return trainer_state.get('global_step', 0)
+        except EntryNotFoundError:
+            # trainer_state.json doesn't exist in the last-checkpoint directory
+            return 0  # Return 0 to indicate directory exists but we can't determine the step
         except Exception:
-            # If we can't get the trainer state, we still know the checkpoint exists
-            return 0  # Return 0 to indicate it exists but we can't determine the step
+            # Other error accessing the trainer state file
+            return 0  # Return 0 to indicate directory exists but we can't determine the step
     except Exception:
         return None
 
@@ -124,15 +129,14 @@ def _validate_remote_checkpoint(hub_model_id: str) -> None:
     try:
         from huggingface_hub import HfApi
         api = HfApi()
-        # Check if the last-checkpoint directory exists in the main branch
-        repo_tree = list(api.list_repo_tree(
-            repo_id=hub_model_id, revision="main"))
-        # Check if any item in the tree is a directory named "last-checkpoint"
-        last_checkpoint_exists = any(
-            hasattr(item, 'tree_id') and item.path == "last-checkpoint"
-            for item in repo_tree
-        )
-        if not last_checkpoint_exists:
+        # Check if the last-checkpoint directory exists by trying to list its contents
+        try:
+            list(api.list_repo_tree(
+                repo_id=hub_model_id,
+                revision="main",
+                path_in_repo="last-checkpoint"
+            ))
+        except Exception as e:
             raise FileNotFoundError(
                 f"'last-checkpoint' directory not found in remote model {hub_model_id}."
             )
@@ -152,18 +156,17 @@ def _get_cached_remote_checkpoint(hub_model_id: str) -> str:
     """Get the remote checkpoint using HF cache and return its path."""
     try:
         from huggingface_hub import snapshot_download
-        import os
-        
+
         # Download the last-checkpoint directory from the hub using HF cache
         repo_path = snapshot_download(
             repo_id=hub_model_id,
             revision="main",
             allow_patterns="last-checkpoint/*"
         )
-        
+
         # The checkpoint directory is in the repo path under last-checkpoint
         checkpoint_dir = os.path.join(repo_path, "last-checkpoint")
-        
+
         print(f"🔄 Using cached remote checkpoint from: {checkpoint_dir}")
         return checkpoint_dir
     except Exception as e:
