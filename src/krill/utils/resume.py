@@ -19,7 +19,7 @@ def determine_resume_checkpoint(resume_option: str, output_dir: str, hub_model_i
     Returns:
         None if no checkpoint should be used (start from scratch)
         Boolean True to let Hugging Face find the last local checkpoint automatically
-        String path to local checkpoint directory (downloaded from remote if needed)
+        String path to local checkpoint directory (from cache or downloaded)
     """
     resume_option = resume_option.lower()
 
@@ -44,8 +44,8 @@ def determine_resume_checkpoint(resume_option: str, output_dir: str, hub_model_i
                 print(f"🔄 Remote resume: Found remote checkpoint (step {remote_step})")
             else:
                 print("🔄 Remote resume: Found remote checkpoint")
-        # Download the remote checkpoint using HF cache and return local path
-        return _download_remote_checkpoint_with_cache(hub_model_id)
+        # Get the remote checkpoint using HF cache and return local path
+        return _get_cached_remote_checkpoint(hub_model_id)
     else:
         raise ValueError(
             f"Invalid resume option: {resume_option}. "
@@ -125,11 +125,9 @@ def _validate_remote_checkpoint(hub_model_id: str) -> None:
         from huggingface_hub import HfApi
         api = HfApi()
         # Check if the last-checkpoint directory exists in the main branch
-        # We list files in the main branch and look for the last-checkpoint directory
         repo_tree = list(api.list_repo_tree(
             repo_id=hub_model_id, revision="main"))
         # Check if any item in the tree is a directory named "last-checkpoint"
-        # Folders have a 'tree_id' attribute, files have a 'blob_id' attribute
         last_checkpoint_exists = any(
             hasattr(item, 'tree_id') and item.path == "last-checkpoint"
             for item in repo_tree
@@ -150,8 +148,8 @@ def _validate_remote_checkpoint(hub_model_id: str) -> None:
         )
 
 
-def _download_remote_checkpoint_with_cache(hub_model_id: str) -> str:
-    """Download the remote checkpoint using HF cache and return its path."""
+def _get_cached_remote_checkpoint(hub_model_id: str) -> str:
+    """Get the remote checkpoint using HF cache and return its path."""
     try:
         from huggingface_hub import snapshot_download
         import os
@@ -170,7 +168,7 @@ def _download_remote_checkpoint_with_cache(hub_model_id: str) -> str:
         return checkpoint_dir
     except Exception as e:
         raise FileNotFoundError(
-            f"Error downloading remote checkpoint for model {hub_model_id}: {str(e)}."
+            f"Error accessing remote checkpoint for model {hub_model_id}: {str(e)}."
         )
 
 
@@ -189,8 +187,8 @@ def _handle_auto_resume(output_dir: str, hub_model_id: str) -> Optional[Union[st
         if remote_step > local_step:
             print(
                 f"🔄 Auto-resume: Found more recent remote checkpoint (step {remote_step} > {local_step})")
-            # Download the remote checkpoint using HF cache
-            return _download_remote_checkpoint_with_cache(hub_model_id)
+            # Get the remote checkpoint using HF cache
+            return _get_cached_remote_checkpoint(hub_model_id)
         else:
             print(
                 f"🔄 Auto-resume: Found more recent local checkpoint (step {local_step} >= {remote_step})")
@@ -206,8 +204,8 @@ def _handle_auto_resume(output_dir: str, hub_model_id: str) -> Optional[Union[st
                 f"🔄 Auto-resume: Found remote checkpoint (step {remote_step})")
         else:
             print(f"🔄 Auto-resume: Found remote checkpoint")
-        # Download the remote checkpoint using HF cache
-        return _download_remote_checkpoint_with_cache(hub_model_id)
+        # Get the remote checkpoint using HF cache
+        return _get_cached_remote_checkpoint(hub_model_id)
     else:
         # Neither exists
         print("⚠️  Auto-resume: No checkpoints found locally or remotely. Starting from scratch.")
