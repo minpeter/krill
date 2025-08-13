@@ -28,6 +28,36 @@ Krill is a minimalistic training framework for Large Language Models (LLMs) buil
 - Data collators optimized for language modeling and flash attention
 - Customizable optimizers including Muon
 
+## Testing
+
+Krill includes a comprehensive test suite to ensure reliability and correctness:
+
+### Test Structure
+- **Unit Tests**: Test individual functions in isolation with mocks
+- **Integration Tests**: Test actual file parsing and component integration
+- **End-to-End Tests**: Test complete workflows with real training
+
+### Running Tests
+```bash
+# Run all fast tests (unit + integration)
+pytest tests/ -m "not slow"
+
+# Run unit tests only
+pytest tests/test_resume_unit.py
+
+# Run integration tests only
+pytest tests/test_resume_integration.py
+
+# Run all tests
+pytest tests/
+```
+
+See [tests/README.md](tests/README.md) for detailed testing information.
+
+### End-to-End Testing
+
+The integration test suite includes comprehensive end-to-end tests that verify the resume functionality with real remote repositories. These tests confirm that the checkpoint step for `pretraining/krill-e2e-ci-pico` is correctly identified as 44.
+
 ## Quickstart
 
 ### Minimal Usage
