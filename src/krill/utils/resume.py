@@ -114,9 +114,9 @@ def _validate_local_checkpoint(output_dir: str) -> None:
                 f"No valid checkpoint found in output directory ({output_dir})."
             )
     except Exception as e:
-        raise FileNotFoundError(
-            f"Error accessing output directory ({output_dir}) for checkpoint detection: {str(e)}."
-        )
+        raise IOError(
+            f"Error accessing output directory ({output_dir}) for checkpoint detection: {str(e)}"
+        ) from e
 
 
 def _validate_remote_checkpoint(hub_model_id: str) -> None:
