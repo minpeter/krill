@@ -101,9 +101,11 @@ def _get_remote_checkpoint_step(hub_model_id: str) -> Optional[int]:
         except EntryNotFoundError:
             # trainer_state.json doesn't exist in the last-checkpoint directory
             return 0  # Return 0 to indicate directory exists but we can't determine the step
-        except Exception:
-            # Other error accessing the trainer state file
-            return 0  # Return 0 to indicate directory exists but we can't determine the step
+        except Exception as e:
+            # Other error accessing the trainer state file (e.g., network issue).
+            # Return None to indicate we couldn't determine the step.
+            print(f"Warning: Could not determine remote checkpoint step for {hub_model_id}: {e}")
+            return None
     except Exception:
         return None
 
