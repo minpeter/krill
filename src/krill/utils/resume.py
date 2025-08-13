@@ -119,9 +119,9 @@ def _validate_local_checkpoint(output_dir: str) -> None:
                 f"No valid checkpoint found in output directory ({output_dir})."
             )
     except Exception as e:
-        raise FileNotFoundError(
-            f"Error accessing output directory ({output_dir}) for checkpoint detection: {str(e)}."
-        )
+        raise IOError(
+            f"Error accessing output directory ({output_dir}) for checkpoint detection: {str(e)}"
+        ) from e
 
 
 def _validate_remote_checkpoint(hub_model_id: str) -> None:
@@ -147,9 +147,9 @@ def _validate_remote_checkpoint(hub_model_id: str) -> None:
         # - Repository doesn't exist
         # - last-checkpoint directory doesn't exist
         # - Network issues
-        raise FileNotFoundError(
-            f"Error accessing remote checkpoint 'last-checkpoint' for model {hub_model_id}: {str(e)}."
-        )
+        raise IOError(
+            f"Error accessing remote checkpoint 'last-checkpoint' for model {hub_model_id}: {str(e)}"
+        ) from e
 
 
 def _get_cached_remote_checkpoint(hub_model_id: str) -> str:
@@ -170,9 +170,9 @@ def _get_cached_remote_checkpoint(hub_model_id: str) -> str:
         print(f"🔄 Using cached remote checkpoint from: {checkpoint_dir}")
         return checkpoint_dir
     except Exception as e:
-        raise FileNotFoundError(
-            f"Error accessing remote checkpoint for model {hub_model_id}: {str(e)}."
-        )
+        raise IOError(
+            f"Error accessing remote checkpoint for model {hub_model_id}: {str(e)}"
+        ) from e
 
 
 def _handle_auto_resume(output_dir: str, hub_model_id: str) -> Optional[Union[str, bool]]:
