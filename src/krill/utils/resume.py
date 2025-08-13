@@ -3,7 +3,6 @@ Utility functions for handling resume functionality in Krill.
 """
 import os
 import json
-import tempfile
 from typing import Optional, Union
 from transformers.trainer_utils import get_last_checkpoint
 
@@ -45,8 +44,8 @@ def determine_resume_checkpoint(resume_option: str, output_dir: str, hub_model_i
                 print(f"🔄 Remote resume: Found remote checkpoint (step {remote_step})")
             else:
                 print("🔄 Remote resume: Found remote checkpoint")
-        # Download the remote checkpoint and return local path
-        return _download_remote_checkpoint_to_temp(hub_model_id)
+        # Download the remote checkpoint using HF cache and return local path
+        return _download_remote_checkpoint_with_cache(hub_model_id)
     else:
         raise ValueError(
             f"Invalid resume option: {resume_option}. "
@@ -151,27 +150,23 @@ def _validate_remote_checkpoint(hub_model_id: str) -> None:
         )
 
 
-def _download_remote_checkpoint_to_temp(hub_model_id: str) -> str:
-    """Download the remote checkpoint to a temporary directory and return its path."""
+def _download_remote_checkpoint_with_cache(hub_model_id: str) -> str:
+    """Download the remote checkpoint using HF cache and return its path."""
     try:
         from huggingface_hub import snapshot_download
-        import tempfile
         import os
         
-        # Create a temporary directory to store the downloaded checkpoint
-        temp_dir = tempfile.mkdtemp(prefix="krill_remote_checkpoint_")
-        checkpoint_dir = os.path.join(temp_dir, "last-checkpoint")
-        
-        # Download the last-checkpoint directory from the hub
-        snapshot_download(
+        # Download the last-checkpoint directory from the hub using HF cache
+        repo_path = snapshot_download(
             repo_id=hub_model_id,
             revision="main",
-            allow_patterns="last-checkpoint/*",
-            local_dir=temp_dir,
-            local_dir_use_symlinks=False
+            allow_patterns="last-checkpoint/*"
         )
         
-        print(f"🔄 Downloaded remote checkpoint to: {checkpoint_dir}")
+        # The checkpoint directory is in the repo path under last-checkpoint
+        checkpoint_dir = os.path.join(repo_path, "last-checkpoint")
+        
+        print(f"🔄 Using cached remote checkpoint from: {checkpoint_dir}")
         return checkpoint_dir
     except Exception as e:
         raise FileNotFoundError(
@@ -194,8 +189,8 @@ def _handle_auto_resume(output_dir: str, hub_model_id: str) -> Optional[Union[st
         if remote_step > local_step:
             print(
                 f"🔄 Auto-resume: Found more recent remote checkpoint (step {remote_step} > {local_step})")
-            # Download the remote checkpoint
-            return _download_remote_checkpoint_to_temp(hub_model_id)
+            # Download the remote checkpoint using HF cache
+            return _download_remote_checkpoint_with_cache(hub_model_id)
         else:
             print(
                 f"🔄 Auto-resume: Found more recent local checkpoint (step {local_step} >= {remote_step})")
@@ -211,8 +206,8 @@ def _handle_auto_resume(output_dir: str, hub_model_id: str) -> Optional[Union[st
                 f"🔄 Auto-resume: Found remote checkpoint (step {remote_step})")
         else:
             print(f"🔄 Auto-resume: Found remote checkpoint")
-        # Download the remote checkpoint
-        return _download_remote_checkpoint_to_temp(hub_model_id)
+        # Download the remote checkpoint using HF cache
+        return _download_remote_checkpoint_with_cache(hub_model_id)
     else:
         # Neither exists
         print("⚠️  Auto-resume: No checkpoints found locally or remotely. Starting from scratch.")
