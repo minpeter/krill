@@ -44,6 +44,7 @@ Configuration for Krill is managed through YAML files. The schema for these conf
 - **Structured Functional Classification**: Code is organized into logical modules and sub-packages based on functionality (e.g., `utils`, `optimizer`). This promotes modularity and ease of navigation.
 - **`uv` Usage**: `uv` is used for dependency management and installation due to its speed and efficiency. It ensures consistent and reproducible environments across different development setups.
 - **README Updates**: After developing new features, always review `README.md` to determine if updates are necessary to reflect the changes and ensure documentation remains current.
+- **GitHub CLI (`gh`)**: If available in your environment, the `gh` CLI tool can be used to streamline common GitHub workflows, such as creating pull requests, managing issues, and interacting with repositories directly from the command line.
 - **Dependencies**: Managed via `pyproject.toml` and `uv.lock`.
 - **Testing**: Refer to `test_memory.py`, `test_memory_efficient.py`, `test_preprocessing.py`, and `test_simple.py` for existing test patterns.
 - **Contribution**: See `CONTRIBUTING.md` for guidelines.
