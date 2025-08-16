@@ -49,10 +49,15 @@ def get_optimizer(optimizer_name, model, lr=1e-3, wd=0.1, muon_implementation="m
             optimizer = SingleDeviceMuonWithAuxAdam(param_groups)
         elif muon_implementation == "pytorch_optimizer":
             # https://github.com/kozistr/pytorch_optimizer/blob/main/pytorch_optimizer/optimizer/muon.py
-            optimizer = PytorchOptimizerMuon(
-                muon_params, lr=lr, weight_decay=wd,
-                adamw_params=non_muon_params, adamw_lr=lr, adamw_wd=wd
-            )
+
+            param_groups = [
+                {'params': muon_params, 'lr': lr,
+                 'weight_decay': wd, 'use_muon': True},
+                {'params': non_muon_params, 'lr': lr,
+                 'weight_decay': wd, 'use_muon': False},
+            ]
+
+            optimizer = PytorchOptimizerMuon(param_groups)
         else:
             # TODO: add megatron muon implementation
             # https://github.com/NVIDIA/Megatron-LM/pull/1428
