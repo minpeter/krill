@@ -12,9 +12,7 @@ where = ["src"]
 name = "krill"
 version = "0.1.0"
 description = "🦐 A minimal pretraining trainer for LLMs — from scratch."
-authors = [
-    { name = "minpeter", email = "kali2005611@gmail.com" },
-]
+authors = [{ name = "minpeter", email = "kali2005611@gmail.com" }]
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
@@ -34,11 +32,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-cuda = [
-    "triton>=3.3.1",
-    "flash-attn>=2.8.2",
-    "liger-kernel>=0.6.1",
-]
+cuda = ["triton>=3.3.1", "flash-attn==2.8.2", "liger-kernel>=0.6.1"]
 
 [tool.uv.sources]
 muon-optimizer = { git = "https://github.com/KellerJordan/Muon" }
