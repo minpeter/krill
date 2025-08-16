@@ -7,12 +7,12 @@ from typing import Optional, Union
 from transformers.trainer_utils import get_last_checkpoint
 
 
-def determine_resume_checkpoint(resume_option: str, output_dir: str, hub_model_id: str) -> Optional[Union[str, bool]]:
+def determine_resume_checkpoint(resume_option: str | bool, output_dir: str, hub_model_id: str) -> Optional[Union[str, bool]]:
     """
     Determine the checkpoint to resume from based on the resume option.
 
     Args:
-        resume_option: Resume option (auto, local, remote, false, true)
+        resume_option: Resume option (auto, local, remote, false, true) or boolean
         output_dir: Local output directory where checkpoints are stored
         hub_model_id: Hugging Face Hub model ID for remote checkpoints
 
@@ -21,22 +21,37 @@ def determine_resume_checkpoint(resume_option: str, output_dir: str, hub_model_i
         Boolean True to let Hugging Face find the last local checkpoint automatically
         String path to local checkpoint directory (from cache or downloaded)
     """
-    resume_option = resume_option.lower()
+    # Explicit boolean handling (fast path)
+    if isinstance(resume_option, bool):
+        return True if resume_option else None
 
-    if resume_option == "false":
+    # Treat None as "false" (start from scratch)
+    if resume_option is None:
         return None
-    elif resume_option == "true":
-        # Let Hugging Face automatically find the last checkpoint in output_dir
+
+    # Only strings remain valid
+    if not isinstance(resume_option, str):
+        raise ValueError(
+            f"Invalid type for resume_option: {type(resume_option)}. Expected str or bool.")
+
+    opt = resume_option.strip().lower()
+
+    # Accept common synonyms for true/false
+    false_opts = {"false", "no", "0", "none"}
+    true_opts = {"true", "yes", "1"}
+
+    if opt in false_opts:
+        return None
+    if opt in true_opts:
         return True
-    elif resume_option == "auto":
-        # Smart resume: check both local and remote, use the most recent
+
+    # Explicit options
+    if opt == "auto":
         return _handle_auto_resume(output_dir, hub_model_id)
-    elif resume_option == "local":
-        # Validate local checkpoint exists
+    if opt == "local":
         _validate_local_checkpoint(output_dir)
-        return True  # Let Hugging Face handle the actual resuming
-    elif resume_option == "remote":
-        # Validate remote checkpoint exists and get step info
+        return True
+    if opt == "remote":
         _validate_remote_checkpoint(hub_model_id)
         remote_step = _get_remote_checkpoint_step(hub_model_id)
         if remote_step is not None:
@@ -45,13 +60,13 @@ def determine_resume_checkpoint(resume_option: str, output_dir: str, hub_model_i
                     f"🔄 Remote resume: Found remote checkpoint (step {remote_step})")
             else:
                 print("🔄 Remote resume: Found remote checkpoint")
-        # Get the remote checkpoint using HF cache and return local path
         return _get_cached_remote_checkpoint(hub_model_id)
-    else:
-        raise ValueError(
-            f"Invalid resume option: {resume_option}. "
-            "Valid options are: auto, local, remote, false, true"
-        )
+
+    # Unknown string
+    raise ValueError(
+        f"Invalid resume option: {resume_option!r}. "
+        "Valid options: auto, local, remote, true/false (or boolean True/False)."
+    )
 
 
 def _get_local_checkpoint_step(output_dir: str) -> Optional[int]:
@@ -104,7 +119,8 @@ def _get_remote_checkpoint_step(hub_model_id: str) -> Optional[int]:
         except Exception as e:
             # Other error accessing the trainer state file (e.g., network issue).
             # Return None to indicate we couldn't determine the step.
-            print(f"Warning: Could not determine remote checkpoint step for {hub_model_id}: {e}")
+            print(
+                f"Warning: Could not determine remote checkpoint step for {hub_model_id}: {e}")
             return None
     except Exception:
         return None
@@ -220,4 +236,5 @@ def _handle_auto_resume(output_dir: str, hub_model_id: str) -> Optional[Union[st
     else:
         # Neither exists
         print("⚠️  Auto-resume: No checkpoints found locally or remotely. Starting from scratch.")
+        return None
         return None

@@ -24,4 +24,4 @@ train:
   muon_implementation: moonlight
   micro_batch_size: 32
   gradient_accumulation_steps: 1
-  resume: auto
+  resume: false

@@ -36,13 +36,13 @@ class TrainConfig(BaseModel):
     model_config_name: str = Field(default="small")
     gradient_accumulation_steps: int = Field(default=1)
     micro_batch_size: int | None = Field(default=1)
-    # Resume options: 
+    # Resume options:
     # - auto: Smart detection (local checkpoint first, then remote, fallback to scratch)
     # - local: Resume from local checkpoint only (error if none found)
     # - remote: Resume from remote checkpoint on Hugging Face Hub
     # - true: Let Hugging Face auto-detect last local checkpoint (same as Trainer's resume_from_checkpoint=True)
     # - false: Start from scratch
-    resume: str = Field(default="false")
+    resume: str | bool = Field(default=False)
 
 
 class KrillConfig(BaseModel):
