@@ -32,7 +32,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-cuda = ["triton>=3.3.1", "flash-attn==2.8.2", "liger-kernel>=0.6.1"]
+cuda = ["triton>=3.3.1", "flash-attn==2.8.2", "liger-kernel>=0.8.0"]
 
 [tool.uv.sources]
 muon-optimizer = { git = "https://github.com/KellerJordan/Muon" }
