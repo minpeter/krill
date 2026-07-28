@@ -16,7 +16,7 @@ authors = [{ name = "minpeter", email = "kali2005611@gmail.com" }]
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
-    "click>=8.2.1",
+    "click>=8.4.1",
     "datasets>=5.0.0",
     "hf-transfer>=0.1.9",
     "torch==2.7.1",
@@ -32,7 +32,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-cuda = ["triton>=3.7.0", "flash-attn==2.8.2", "liger-kernel>=0.8.0"]
+cuda = ["triton>=3.7.0", "flash-attn==2.8.3.post1", "liger-kernel>=0.8.0"]
 
 [tool.uv.sources]
 muon-optimizer = { git = "https://github.com/KellerJordan/Muon" }
