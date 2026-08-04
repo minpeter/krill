@@ -19,7 +19,7 @@ dependencies = [
     "click>=8.4.1",
     "datasets>=5.0.0",
     "hf-transfer>=0.1.9",
-    "torch==2.7.1",
+    "torch==2.13.0",
     "transformers>=5.12.1",
     "trl>=1.9.2",
     "wandb>=0.21.0",
