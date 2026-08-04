@@ -20,7 +20,7 @@ dependencies = [
     "datasets>=5.0.0",
     "hf-transfer>=0.1.9",
     "torch==2.7.1",
-    "transformers>=5.12.1",
+    "transformers>=5.14.1",
     "trl>=1.9.2",
     "wandb>=0.21.0",
     "PyYAML>=5.4.1",
