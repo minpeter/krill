@@ -26,7 +26,7 @@ dependencies = [
     "PyYAML>=5.4.1",
     "pydantic>=1.10.0",
     "muon-optimizer",
-    "pytorch-optimizer>=3.7.0",
+    "pytorch-optimizer>=3.10.1",
     "accelerate>=1.14.0",
     "lm-eval[wandb]>=0.4.12",
 ]
