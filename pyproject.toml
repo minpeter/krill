@@ -24,7 +24,7 @@ dependencies = [
     "trl>=1.9.2",
     "wandb>=0.21.0",
     "PyYAML>=5.4.1",
-    "pydantic>=1.10.0",
+    "pydantic>=2.13.4",
     "muon-optimizer",
     "pytorch-optimizer>=3.7.0",
     "accelerate>=1.14.0",
