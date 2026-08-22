@@ -1,0 +1,14 @@
+GEMINI.md
+  h_47761b8ceb2970 1-50
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "ea2ce050f32689cfcfbee66d0e86f8c07506bf8d",
+  "prompts": {},
+  "humans": {
+    "h_47761b8ceb2970": {
+      "author": "minpeter <minpeter@friendli.ai>"
+    }
+  }
+}
